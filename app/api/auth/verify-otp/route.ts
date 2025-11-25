@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find OTP record
     const otpRecord = await prisma.passwordResetOTP.findFirst({
       where: {
         email,
@@ -29,7 +28,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mark OTP as verified
     await prisma.passwordResetOTP.update({
       where: { id: otpRecord.id },
       data: { verified: true },

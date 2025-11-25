@@ -51,7 +51,6 @@ export default function SetPasswordModal({ isOpen, onClose, onSuccess }: SetPass
   };
 
   const handleSkip = () => {
-    // Simpan di sessionStorage - akan hilang saat logout/tutup browser
     sessionStorage.setItem('skippedSetPassword', 'true');
     onClose();
   };
