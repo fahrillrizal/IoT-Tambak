@@ -98,12 +98,13 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       profile(profile) {
+        const emailPrefix = (profile.email || "").split("@")[0];
         return {
           id: profile.sub,
           email: profile.email,
-          name: profile.name,
+          name: profile.name || emailPrefix,
           image: profile.picture,
-          username: (profile.email || "").split("@")[0],
+          username: emailPrefix,
         } as any;
       },
     }),
@@ -147,10 +148,23 @@ export const authConfig: NextAuthConfig = {
               expires_at: account.expires_at,
             },
           });
+          
+          // Update username dan image jika belum ada
+          if (!existingUser.username || !existingUser.image) {
+            await prisma.user.update({
+              where: { id: existingUser.id },
+              data: {
+                username: existingUser.username || (user.email || "").split("@")[0],
+                image: existingUser.image || user.image,
+                name: existingUser.name || user.name,
+              },
+            });
+          }
           return true;
         }
         
-        // User baru, biarkan PrismaAdapter handle pembuatan user
+        // User baru dari Google - akan dibuat oleh PrismaAdapter
+        // Kita akan update username di jwt callback
         return true;
       }
       
@@ -161,13 +175,27 @@ export const authConfig: NextAuthConfig = {
         // Untuk OAuth, cari user dari database berdasarkan email karena user.id dari OAuth bukan ID database
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email! },
-          select: { id: true, username: true, password: true }
+          select: { id: true, username: true, password: true, name: true, image: true }
         });
         
         if (dbUser) {
           token.id = dbUser.id.toString();
           token.username = dbUser.username;
           token.needsPassword = !dbUser.password;
+          
+          // Jika username belum ada (user baru dari Google), set default username
+          if (!dbUser.username) {
+            const defaultUsername = (user.email || "").split("@")[0];
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: { 
+                username: defaultUsername,
+                name: dbUser.name || user.name,
+                image: dbUser.image || user.image,
+              },
+            });
+            token.username = defaultUsername;
+          }
         } else {
           // Fallback untuk credentials login
           token.id = (user as any).id;
@@ -194,16 +222,38 @@ export const authConfig: NextAuthConfig = {
 
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token, trigger }) {
       if (!token || !token.id) {
         return null as any;
       }
 
-      if (session.user) {
-        (session.user as any).id = token.id as string;
-        (session.user as any).username = token.username as string;
-        (session.user as any).needsPassword = token.needsPassword as boolean;
+      // Always fetch latest user data from database to ensure profile updates are reflected
+      const dbUser = await prisma.user.findUnique({
+        where: { id: parseInt(token.id as string) },
+        select: { 
+          id: true, 
+          email: true, 
+          name: true, 
+          username: true, 
+          image: true, 
+          password: true 
+        }
+      });
+
+      if (dbUser && session.user) {
+        session.user.id = dbUser.id.toString();
+        session.user.email = dbUser.email;
+        session.user.name = dbUser.name;
+        session.user.username = dbUser.username || "";
+        session.user.image = dbUser.image;
+        session.user.needsPassword = !dbUser.password;
+      } else if (session.user) {
+        // Fallback if database query fails
+        session.user.id = token.id as string;
+        session.user.username = token.username as string;
+        session.user.needsPassword = token.needsPassword as boolean;
       }
+      
       return session;
     },
   },

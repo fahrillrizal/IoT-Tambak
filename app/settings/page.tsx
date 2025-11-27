@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { X } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function SettingsPage() {
   const { confirm } = useConfirm();
   const [googleLinked, setGoogleLinked] = useState<boolean | null>(null);
   const [loadingAction, setLoadingAction] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
 
   const refreshGoogleStatus = async () => {
     try {
@@ -108,12 +110,18 @@ export default function SettingsPage() {
         {/* Grid Content */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Profile Card */}
-          <div
-            onClick={() => router.push("/settings/profile")}
-            className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:shadow-lg transition-shadow"
-          >
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
             <div className="flex flex-col items-center">
-              <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 mb-4">
+              <div 
+                className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 mb-4 cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={(e) => {
+                  if (session.user.image) {
+                    e.stopPropagation();
+                    setShowImageModal(true);
+                  }
+                }}
+                title={session.user.image ? "Klik untuk melihat" : ""}
+              >
                 {session.user.image ? (
                   <img
                     src={session.user.image}
@@ -132,9 +140,15 @@ export default function SettingsPage() {
                 {session.user.name || session.user.email}
               </h2>
               <p className="text-sm text-gray-500 mb-4">{session.user.email}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 mb-4">
                 Kelola informasi profil, foto, dan alamat akun Anda.
               </p>
+              <button
+                onClick={() => router.push("/settings/profile")}
+                className="text-sm font-medium text-blue-600 hover:text-blue-700 px-4 py-2 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                Edit Profil
+              </button>
             </div>
           </div>
 
@@ -201,6 +215,32 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Image View Modal */}
+      {showImageModal && session.user.image && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div className="relative max-w-5xl w-full">
+            <button
+              onClick={() => setShowImageModal(false)}
+              className="absolute -top-14 right-0 flex items-center gap-2 text-white hover:text-gray-300 transition-colors px-4 py-2 rounded-lg hover:bg-white/10"
+            >
+              <X className="h-5 w-5" />
+              <span className="text-sm font-medium">Tutup</span>
+            </button>
+            <div className="bg-white rounded-lg p-2">
+              <img
+                src={session.user.image}
+                alt="Profile preview"
+                className="w-full h-auto max-h-[80vh] object-contain rounded"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

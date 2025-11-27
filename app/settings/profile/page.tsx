@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { ArrowLeft, Pencil } from "lucide-react";
+import ImageCropModal from "@/components/ImageCropModal";
+import { ArrowLeft, Pencil, X } from "lucide-react";
 
 interface Province {
   id: string;
@@ -50,6 +51,9 @@ export default function ProfileSettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -148,25 +152,42 @@ export default function ProfileSettingsPage() {
     });
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Create object URL for preview
+    const imageUrl = URL.createObjectURL(file);
+    setSelectedImageUrl(imageUrl);
+    setShowCropModal(true);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleCropComplete = async (croppedImageBlob: Blob) => {
+    setShowCropModal(false);
     setUploading(true);
     setError(null);
     setMessage(null);
+    
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", croppedImageBlob, "profile.jpg");
       formData.append(
         "upload_preset",
         process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || ""
       );
+      
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       if (!cloudName) {
         setError("Cloudinary belum dikonfigurasi");
         setUploading(false);
         return;
       }
+      
       const res = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         {
@@ -174,17 +195,37 @@ export default function ProfileSettingsPage() {
           body: formData,
         }
       );
+      
       const data = await res.json();
+      
       if (data.secure_url) {
         setForm((prev) => ({ ...prev, image: data.secure_url }));
-        setMessage("Gambar berhasil diupload");
+        setMessage("Foto profil berhasil diperbarui");
+        
+        // Update session to reflect new image immediately
+        await fetch('/api/auth/session?update', { method: 'GET' });
+        // Trigger session reload
+        const event = new Event('visibilitychange');
+        document.dispatchEvent(event);
       } else {
-        setError("Upload gagal");
+        setError("Upload gagal: " + (data.error?.message || "Unknown error"));
       }
     } catch (err: any) {
-      setError("Upload gagal");
+      setError("Upload gagal: " + err.message);
     } finally {
       setUploading(false);
+      if (selectedImageUrl) {
+        URL.revokeObjectURL(selectedImageUrl);
+        setSelectedImageUrl(null);
+      }
+    }
+  };
+
+  const handleCropCancel = () => {
+    setShowCropModal(false);
+    if (selectedImageUrl) {
+      URL.revokeObjectURL(selectedImageUrl);
+      setSelectedImageUrl(null);
     }
   };
 
@@ -245,6 +286,12 @@ export default function ProfileSettingsPage() {
           image: payload.image !== undefined ? payload.image : form.image,
         };
         setInitial(newSnap);
+        
+        // Update session to reflect new data immediately
+        await fetch('/api/auth/session?update', { method: 'GET' });
+        // Trigger session reload
+        const event = new Event('visibilitychange');
+        document.dispatchEvent(event);
       }
     } catch (e: any) {
       setError("Terjadi kesalahan");
@@ -286,7 +333,11 @@ export default function ProfileSettingsPage() {
             {/* Avatar Section */}
             <div className="flex justify-center mb-8">
               <div className="relative">
-                <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center text-gray-600">
+                <div 
+                  className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center text-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => form.image && setShowImageModal(true)}
+                  title={form.image ? "Klik untuk melihat" : ""}
+                >
                   {form.image ? (
                     <img
                       src={form.image}
@@ -311,7 +362,7 @@ export default function ProfileSettingsPage() {
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  onChange={handleUpload}
+                  onChange={handleFileSelect}
                   disabled={uploading}
                   className="hidden"
                 />
@@ -464,6 +515,41 @@ export default function ProfileSettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Image View Modal */}
+      {showImageModal && form.image && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div className="relative max-w-5xl w-full">
+            <button
+              onClick={() => setShowImageModal(false)}
+              className="absolute -top-14 right-0 flex items-center gap-2 text-white hover:text-gray-300 transition-colors px-4 py-2 rounded-lg hover:bg-white/10"
+            >
+              <X className="h-5 w-5" />
+              <span className="text-sm font-medium">Tutup</span>
+            </button>
+            <div className="bg-white rounded-lg p-2">
+              <img
+                src={form.image}
+                alt="Profile preview"
+                className="w-full h-auto max-h-[80vh] object-contain rounded"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Crop Modal */}
+      {showCropModal && selectedImageUrl && (
+        <ImageCropModal
+          imageUrl={selectedImageUrl}
+          onCancel={handleCropCancel}
+          onComplete={handleCropComplete}
+        />
+      )}
     </DashboardLayout>
   );
 }
