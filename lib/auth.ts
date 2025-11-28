@@ -90,43 +90,17 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       allowDangerousEmailAccountLinking: true,
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code",
-        },
-      },
-      profile(profile) {
-        const emailPrefix = (profile.email || "").split("@")[0];
-        return {
-          id: profile.sub,
-          email: profile.email,
-          name: profile.name || emailPrefix,
-          image: profile.picture,
-          username: emailPrefix,
-        };
-      },
     }),
   ],
   callbacks: {
-    async signIn({ user, account }) {
-      return true;
-    },
-    async jwt({ token, user, trigger, session }) {
-      if (trigger === "update" && session) {
-        return { ...token, ...session.user };
-      }
-
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id!;
         token.username = user.username || "";
         token.email = user.email || "";
         token.name = user.name || "";
         token.picture = user.image || "";
-        token.needsPassword = false;
       }
-
       return token;
     },
     async session({ session, token }) {
@@ -136,7 +110,6 @@ export const authConfig: NextAuthConfig = {
         session.user.name = token.name || "";
         session.user.image = token.picture || "";
         session.user.username = token.username || "";
-        session.user.needsPassword = token.needsPassword || false;
       }
       return session;
     },
@@ -149,8 +122,22 @@ export const authConfig: NextAuthConfig = {
     strategy: "jwt",
     maxAge: 24 * 60 * 60,
   },
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production" 
+        ? "__Secure-authjs.session-token" 
+        : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true,
+  debug: process.env.NODE_ENV === "development",
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);

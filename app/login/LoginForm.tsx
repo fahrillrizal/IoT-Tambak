@@ -40,8 +40,9 @@ export default function LoginForm() {
         email: data.email,
         password: data.password,
         redirect: false,
-        callbackUrl,
       });
+
+      console.log('SignIn result:', result); // Debug
 
       if (result?.error) {
         setError('Email atau password salah');
@@ -50,11 +51,14 @@ export default function LoginForm() {
       }
 
       if (result?.ok) {
-        // Force refresh dan redirect
-        router.push(callbackUrl);
-        router.refresh();
+        // Tunggu sebentar agar cookie tersimpan
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Force navigation
+        window.location.href = callbackUrl;
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Terjadi kesalahan. Silakan coba lagi.');
       setIsLoading(false);
     }
@@ -129,11 +133,7 @@ export default function LoginForm() {
                   className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
                   tabIndex={-1}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               {errors.password && (
