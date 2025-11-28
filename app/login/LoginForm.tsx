@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,7 +15,6 @@ import { Mail, Lock, Fish, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import GoogleIcon from '@/components/icons/GoogleIcon';
 
 export default function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/';
   
@@ -42,8 +41,6 @@ export default function LoginForm() {
         redirect: false,
       });
 
-      console.log('SignIn result:', result); // Debug
-
       if (result?.error) {
         setError('Email atau password salah');
         setIsLoading(false);
@@ -51,27 +48,18 @@ export default function LoginForm() {
       }
 
       if (result?.ok) {
-        // Tunggu sebentar agar cookie tersimpan
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Force navigation
+        // Force full page reload untuk memastikan cookie terbaca
         window.location.href = callbackUrl;
       }
     } catch (err) {
-      console.error('Login error:', err);
       setError('Terjadi kesalahan. Silakan coba lagi.');
       setIsLoading(false);
     }
   };
 
-  const handleOAuthSignIn = async (provider: 'google') => {
+  const handleGoogleSignIn = () => {
     setIsLoading(true);
-    try {
-      await signIn(provider, { callbackUrl });
-    } catch (err) {
-      setError('Gagal login dengan ' + provider);
-      setIsLoading(false);
-    }
+    signIn('google', { callbackUrl });
   };
 
   return (
@@ -164,7 +152,7 @@ export default function LoginForm() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => handleOAuthSignIn('google')}
+            onClick={handleGoogleSignIn}
             disabled={isLoading}
             className="w-full"
           >

@@ -1,27 +1,33 @@
 import bcrypt from "bcryptjs";
-import NextAuth, { DefaultSession } from "next-auth";
+import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import { prisma } from "./db";
 
+// Type augmentation untuk NextAuth v5
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
       username: string;
       needsPassword?: boolean;
-    } & DefaultSession["user"];
+      email: string;
+      name: string;
+      image?: string | null;
+    };
   }
 
   interface User {
+    id: string;
     username?: string | null;
     needsPassword?: boolean;
   }
 }
 
-declare module "next-auth/jwt" {
+// Type augmentation untuk JWT di NextAuth v5
+declare module "@auth/core/jwt" {
   interface JWT {
     id: string;
     username: string;
@@ -43,7 +49,7 @@ export async function verifyPassword(
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
   providers: [
-    CredentialsProvider({
+    Credentials({
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -54,8 +60,11 @@ export const authConfig: NextAuthConfig = {
           throw new Error("Email dan password harus diisi");
         }
 
+        const email = credentials.email as string;
+        const password = credentials.password as string;
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email },
         });
 
         if (!user) {
@@ -68,10 +77,7 @@ export const authConfig: NextAuthConfig = {
           );
         }
 
-        const isValidPassword = await verifyPassword(
-          credentials.password as string,
-          user.password
-        );
+        const isValidPassword = await verifyPassword(password, user.password);
 
         if (!isValidPassword) {
           throw new Error("Email atau password salah");
@@ -86,7 +92,7 @@ export const authConfig: NextAuthConfig = {
         };
       },
     }),
-    GoogleProvider({
+    Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       allowDangerousEmailAccountLinking: true,
@@ -95,21 +101,15 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id!;
+        token.id = user.id;
         token.username = user.username || "";
-        token.email = user.email || "";
-        token.name = user.name || "";
-        token.picture = user.image || "";
       }
       return token;
     },
     async session({ session, token }) {
-      if (token?.id) {
-        session.user.id = token.id;
-        session.user.email = token.email || "";
-        session.user.name = token.name || "";
-        session.user.image = token.picture || "";
-        session.user.username = token.username || "";
+      if (token) {
+        session.user.id = token.id as string;
+        session.user.username = (token.username as string) || "";
       }
       return session;
     },
@@ -122,22 +122,8 @@ export const authConfig: NextAuthConfig = {
     strategy: "jwt",
     maxAge: 24 * 60 * 60,
   },
-  cookies: {
-    sessionToken: {
-      name: process.env.NODE_ENV === "production" 
-        ? "__Secure-authjs.session-token" 
-        : "authjs.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-  },
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true,
-  debug: process.env.NODE_ENV === "development",
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
