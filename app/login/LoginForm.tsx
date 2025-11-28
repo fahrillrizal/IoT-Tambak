@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,6 +16,9 @@ import GoogleIcon from '@/components/icons/GoogleIcon';
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl') || '/';
+  
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -37,17 +40,22 @@ export default function LoginForm() {
         email: data.email,
         password: data.password,
         redirect: false,
+        callbackUrl,
       });
 
       if (result?.error) {
         setError('Email atau password salah');
-      } else {
-        router.push('/');
+        setIsLoading(false);
+        return;
+      }
+
+      if (result?.ok) {
+        // Force refresh dan redirect
+        router.push(callbackUrl);
         router.refresh();
       }
     } catch (err) {
       setError('Terjadi kesalahan. Silakan coba lagi.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -55,10 +63,9 @@ export default function LoginForm() {
   const handleOAuthSignIn = async (provider: 'google') => {
     setIsLoading(true);
     try {
-      await signIn(provider, { callbackUrl: '/' });
+      await signIn(provider, { callbackUrl });
     } catch (err) {
       setError('Gagal login dengan ' + provider);
-    } finally {
       setIsLoading(false);
     }
   };
