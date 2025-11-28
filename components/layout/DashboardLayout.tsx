@@ -261,8 +261,11 @@ export default function DashboardLayout({
               <div
                 onClick={() => handleNavigation("/settings")}
                 className={cn(
-                  "flex cursor-pointer items-center hover:bg-gray-50 rounded-lg transition-colors",
-                  isCollapsed ? "justify-center p-2" : "gap-3 p-2"
+                  "flex cursor-pointer items-center rounded-lg transition-colors",
+                  isCollapsed ? "justify-center p-2" : "gap-3 p-2",
+                  activeMenu === "settings"
+                    ? "bg-blue-100"
+                    : "hover:bg-gray-50"
                 )}
                 title={isCollapsed ? "Pengaturan Akun" : undefined}
               >
@@ -285,10 +288,24 @@ export default function DashboardLayout({
                 </div>
                 {!isCollapsed && (
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p
+                      className={cn(
+                        "text-sm font-medium truncate",
+                        activeMenu === "settings"
+                          ? "text-blue-700"
+                          : "text-gray-900"
+                      )}
+                    >
                       {session?.user?.email}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p
+                      className={cn(
+                        "text-xs",
+                        activeMenu === "settings"
+                          ? "text-blue-500"
+                          : "text-gray-500"
+                      )}
+                    >
                       {session?.user?.username || "Pengguna"}
                     </p>
                   </div>
