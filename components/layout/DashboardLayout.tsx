@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useCallback, ReactNode } from "react";
+import {
+  useState,
+  useCallback,
+  ReactNode,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -30,11 +36,17 @@ interface DashboardLayoutProps {
   children: ReactNode;
   activeMenu?: MenuType;
   notificationCount?: number;
+  defaultCollapsed?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { id: "smart-feeder", label: "Smart Feeder", icon: Zap, href: "/smart-feeder" },
+  {
+    id: "smart-feeder",
+    label: "Smart Feeder",
+    icon: Zap,
+    href: "/smart-feeder",
+  },
   { id: "history", label: "History", icon: History, href: "/history" },
 ];
 
@@ -42,14 +54,26 @@ export default function DashboardLayout({
   children,
   activeMenu = "dashboard",
   notificationCount = 0,
+  defaultCollapsed = false,
 }: DashboardLayoutProps) {
   const { data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+  const [transitionsEnabled, setTransitionsEnabled] = useState(false);
+
+  useEffect(() => {
+    // Enable transitions after initial render to prevent flash
+    const timer = setTimeout(() => setTransitionsEnabled(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   const toggleSidebar = useCallback(() => {
-    setIsCollapsed((prev) => !prev);
+    setIsCollapsed((prev) => {
+      const newState = !prev;
+      document.cookie = `sidebar_collapsed=${newState}; path=/; max-age=31536000`;
+      return newState;
+    });
   }, []);
 
   const handleNavigation = useCallback(
@@ -89,7 +113,8 @@ export default function DashboardLayout({
         key={item.id}
         onClick={() => handleNavigation(item.href)}
         className={cn(
-          "w-full flex items-center py-3 rounded-lg transition-all",
+          "w-full flex items-center py-3 rounded-lg",
+          transitionsEnabled && "transition-all",
           isCollapsed ? "justify-center px-3" : "gap-3 px-4",
           isActive
             ? "bg-blue-100 text-blue-600"
@@ -141,10 +166,20 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="text-gray-600" aria-label="Scan QR Device">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-600"
+                aria-label="Scan QR Device"
+              >
                 <QrCode className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="sm" className="relative" aria-label="Notifications">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="relative"
+                aria-label="Notifications"
+              >
                 <Bell className="h-5 w-5 text-gray-600" />
                 {notificationCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
@@ -152,7 +187,13 @@ export default function DashboardLayout({
                   </span>
                 )}
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-600" aria-label="Logout">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="text-gray-600"
+                aria-label="Logout"
+              >
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>
@@ -160,9 +201,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Page Content (Mobile) */}
-        <main className="p-4 pb-24">
-          {children}
-        </main>
+        <main className="p-4 pb-24">{children}</main>
 
         {/* Bottom Navigation Bar */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
@@ -176,28 +215,49 @@ export default function DashboardLayout({
       {/* ========== DESKTOP (lg+) ========== */}
       <div className="hidden lg:flex">
         {/* Sidebar */}
-        <div className={cn("shrink-0 transition-all duration-300", isCollapsed ? "w-20" : "w-64")}>
+        <div
+          className={cn(
+            "shrink-0",
+            transitionsEnabled && "transition-all duration-300",
+            isCollapsed ? "w-20" : "w-64"
+          )}
+        >
           <aside
             className={cn(
-              "bg-white border-r border-gray-200 flex flex-col transition-all duration-300 h-screen fixed left-0 top-0 overflow-y-auto z-30",
+              "bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-30",
+              transitionsEnabled && "transition-all duration-300",
               isCollapsed ? "w-20" : "w-64"
             )}
           >
             {/* Logo */}
-            <div className={cn("flex items-center gap-3 mb-8", isCollapsed ? "p-4 justify-center" : "p-6")}>
+            <div
+              className={cn(
+                "flex items-center gap-3 mb-8",
+                isCollapsed ? "p-4 justify-center" : "p-6"
+              )}
+            >
               <div className="rounded-lg bg-blue-100 p-2">
                 <Activity className="h-5 w-5 text-blue-600" />
               </div>
-              {!isCollapsed && <h1 className="text-xl font-bold text-gray-900">IoT Tambak</h1>}
+              {!isCollapsed && (
+                <h1 className="text-xl font-bold text-gray-900">IoT Tambak</h1>
+              )}
             </div>
 
             {/* Navigation */}
-            <nav className={cn("flex-1 space-y-1", isCollapsed ? "px-2" : "px-4")}>
+            <nav
+              className={cn("flex-1 space-y-1", isCollapsed ? "px-2" : "px-4")}
+            >
               {NAV_ITEMS.map((item) => renderNavItem(item, false))}
             </nav>
 
             {/* User Info */}
-            <div className={cn("border-t border-gray-200", isCollapsed ? "p-2" : "p-4")}>
+            <div
+              className={cn(
+                "border-t border-gray-200",
+                isCollapsed ? "p-2" : "p-4"
+              )}
+            >
               <div
                 onClick={() => handleNavigation("/settings")}
                 className={cn(
@@ -208,19 +268,29 @@ export default function DashboardLayout({
               >
                 <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 relative">
                   {session?.user?.image ? (
-                    <img src={session.user.image} alt={session?.user?.name || "User"} className="w-full h-full object-cover" />
+                    <img
+                      src={session.user.image}
+                      alt={session?.user?.name || "User"}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full bg-blue-600 flex items-center justify-center">
                       <span className="text-white font-semibold text-sm">
-                        {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}
+                        {session?.user?.name?.[0]?.toUpperCase() ||
+                          session?.user?.email?.[0]?.toUpperCase() ||
+                          "U"}
                       </span>
                     </div>
                   )}
                 </div>
                 {!isCollapsed && (
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{session?.user?.email}</p>
-                    <p className="text-xs text-gray-500">{session?.user?.username || "Pengguna"}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {session?.user?.email}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {session?.user?.username || "Pengguna"}
+                    </p>
                   </div>
                 )}
               </div>
@@ -233,7 +303,11 @@ export default function DashboardLayout({
           {/* Header */}
           <header className="bg-white border-b border-gray-200 px-8 py-4 sticky top-0 z-20">
             <div className="flex items-center justify-between">
-              <button onClick={toggleSidebar} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="Toggle sidebar">
+              <button
+                onClick={toggleSidebar}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Toggle sidebar"
+              >
                 <Menu className="h-5 w-5 text-gray-600" />
               </button>
 
@@ -252,7 +326,12 @@ export default function DashboardLayout({
                   )}
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-600">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="text-gray-600"
+                >
                   <LogOut className="h-5 w-5 mr-2" />
                   <span className="hidden sm:inline">Logout</span>
                 </Button>
@@ -261,9 +340,7 @@ export default function DashboardLayout({
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-8 overflow-auto">
-            {children}
-          </main>
+          <main className="flex-1 p-8 overflow-auto">{children}</main>
         </div>
       </div>
     </div>
