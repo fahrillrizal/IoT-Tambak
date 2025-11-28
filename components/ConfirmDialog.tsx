@@ -79,7 +79,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       
       {/* Confirm Modal */}
       {isOpen && options && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+        <div className="fixed inset-0 z-100 flex items-center justify-center">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -91,7 +91,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             {/* Content */}
             <div className="p-6">
               <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                <div className="shrink-0 w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                   {getIcon(options.type)}
                 </div>
                 <div className="flex-1">

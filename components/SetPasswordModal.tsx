@@ -63,7 +63,7 @@ export default function SetPasswordModal({ isOpen, onClose, onSuccess }: SetPass
       {/* Modal */}
       <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 text-white">
+        <div className="bg-linear-to-r from-blue-600 to-indigo-600 px-6 py-8 text-white">
           <div className="flex items-center justify-center mb-4">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
               <Lock className="w-8 h-8" />

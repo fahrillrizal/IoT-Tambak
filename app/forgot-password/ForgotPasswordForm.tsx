@@ -261,7 +261,7 @@ export default function ForgotPasswordForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-cyan-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-cyan-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
@@ -283,14 +283,14 @@ export default function ForgotPasswordForm() {
         <CardContent className="space-y-4">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <AlertCircle className="h-5 w-5 shrink-0" />
               <p className="text-sm">{error}</p>
             </div>
           )}
 
           {success && (
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 flex-shrink-0" />
+              <CheckCircle className="h-5 w-5 shrink-0" />
               <p className="text-sm">{success}</p>
             </div>
           )}
