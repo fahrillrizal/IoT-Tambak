@@ -4,6 +4,7 @@ import { useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import PondSelector from "@/components/dashboard/PondSelector";
+import { SmartFeederSkeleton } from "@/components/skeletons/SmartFeederSkeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -27,9 +28,9 @@ export default function SmartFeederPage() {
   // Loading state
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-8 h-8 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
+      <DashboardLayout activeMenu="smart-feeder">
+        <SmartFeederSkeleton />
+      </DashboardLayout>
     );
   }
 

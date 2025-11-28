@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import { ProfileSkeleton } from "@/components/skeletons/ProfileSkeleton";
 import ImageCropModal from "@/components/ImageCropModal";
 import { ArrowLeft, Pencil, X } from "lucide-react";
 
@@ -155,12 +156,12 @@ export default function ProfileSettingsPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     // Create object URL for preview
     const imageUrl = URL.createObjectURL(file);
     setSelectedImageUrl(imageUrl);
     setShowCropModal(true);
-    
+
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -172,7 +173,7 @@ export default function ProfileSettingsPage() {
     setUploading(true);
     setError(null);
     setMessage(null);
-    
+
     try {
       const formData = new FormData();
       formData.append("file", croppedImageBlob, "profile.jpg");
@@ -180,14 +181,14 @@ export default function ProfileSettingsPage() {
         "upload_preset",
         process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || ""
       );
-      
+
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       if (!cloudName) {
         setError("Cloudinary belum dikonfigurasi");
         setUploading(false);
         return;
       }
-      
+
       const res = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         {
@@ -195,17 +196,17 @@ export default function ProfileSettingsPage() {
           body: formData,
         }
       );
-      
+
       const data = await res.json();
-      
+
       if (data.secure_url) {
         setForm((prev) => ({ ...prev, image: data.secure_url }));
         setMessage("Foto profil berhasil diperbarui");
-        
+
         // Update session to reflect new image immediately
-        await fetch('/api/auth/session?update', { method: 'GET' });
+        await fetch("/api/auth/session?update", { method: "GET" });
         // Trigger session reload
-        const event = new Event('visibilitychange');
+        const event = new Event("visibilitychange");
         document.dispatchEvent(event);
       } else {
         setError("Upload gagal: " + (data.error?.message || "Unknown error"));
@@ -286,11 +287,11 @@ export default function ProfileSettingsPage() {
           image: payload.image !== undefined ? payload.image : form.image,
         };
         setInitial(newSnap);
-        
+
         // Update session to reflect new data immediately
-        await fetch('/api/auth/session?update', { method: 'GET' });
+        await fetch("/api/auth/session?update", { method: "GET" });
         // Trigger session reload
-        const event = new Event('visibilitychange');
+        const event = new Event("visibilitychange");
         document.dispatchEvent(event);
       }
     } catch (e: any) {
@@ -302,12 +303,9 @@ export default function ProfileSettingsPage() {
 
   if (status === "loading" || loadingProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Memuat...</p>
-        </div>
-      </div>
+      <DashboardLayout activeMenu="settings">
+        <ProfileSkeleton />
+      </DashboardLayout>
     );
   }
   if (!session) return null;
@@ -333,7 +331,7 @@ export default function ProfileSettingsPage() {
             {/* Avatar Section */}
             <div className="flex justify-center mb-8">
               <div className="relative">
-                <div 
+                <div
                   className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center text-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
                   onClick={() => form.image && setShowImageModal(true)}
                   title={form.image ? "Klik untuk melihat" : ""}
@@ -518,7 +516,7 @@ export default function ProfileSettingsPage() {
 
       {/* Image View Modal */}
       {showImageModal && form.image && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
           onClick={() => setShowImageModal(false)}
         >

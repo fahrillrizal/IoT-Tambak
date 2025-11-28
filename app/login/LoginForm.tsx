@@ -1,26 +1,39 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { loginSchema, type LoginInput } from '@/lib/validations';
-import { Mail, Lock, Fish, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import GoogleIcon from '@/components/icons/GoogleIcon';
+import { useState, useEffect } from "react";
+import { signIn } from "next-auth/react";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { loginSchema, type LoginInput } from "@/lib/validations";
+import { Mail, Lock, Fish, AlertCircle, Eye, EyeOff } from "lucide-react";
+import GoogleIcon from "@/components/icons/GoogleIcon";
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function deleteCookie(name: string) {
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+}
 
 export default function LoginForm() {
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
-  
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState("/");
 
   const {
     register,
@@ -30,36 +43,43 @@ export default function LoginForm() {
     resolver: zodResolver(loginSchema),
   });
 
+  useEffect(() => {
+    const savedRedirect = getCookie("auth-redirect");
+    if (savedRedirect) {
+      setRedirectUrl(savedRedirect);
+      deleteCookie("auth-redirect");
+    }
+  }, []);
+
   const onSubmit = async (data: LoginInput) => {
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const result = await signIn('credentials', {
+      const result = await signIn("credentials", {
         email: data.email,
         password: data.password,
         redirect: false,
       });
 
       if (result?.error) {
-        setError('Email atau password salah');
+        setError("Email atau password salah");
         setIsLoading(false);
         return;
       }
 
       if (result?.ok) {
-        // Force full page reload untuk memastikan cookie terbaca
-        window.location.href = callbackUrl;
+        window.location.href = redirectUrl;
       }
     } catch (err) {
-      setError('Terjadi kesalahan. Silakan coba lagi.');
+      setError("Terjadi kesalahan. Silakan coba lagi.");
       setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = () => {
     setIsLoading(true);
-    signIn('google', { callbackUrl });
+    signIn("google", { callbackUrl: redirectUrl });
   };
 
   return (
@@ -94,7 +114,7 @@ export default function LoginForm() {
                   type="email"
                   placeholder="nama@example.com"
                   className="pl-10"
-                  {...register('email')}
+                  {...register("email")}
                   disabled={isLoading}
                 />
               </div>
@@ -109,10 +129,10 @@ export default function LoginForm() {
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className="pl-10 pr-10"
-                  {...register('password')}
+                  {...register("password")}
                   disabled={isLoading}
                 />
                 <button
@@ -121,20 +141,29 @@ export default function LoginForm() {
                   className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
                   tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
               {errors.password && (
-                <p className="text-sm text-red-600">{errors.password.message}</p>
+                <p className="text-sm text-red-600">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Memproses...' : 'Masuk'}
+              {isLoading ? "Memproses..." : "Masuk"}
             </Button>
 
             <div className="text-right">
-              <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+              <Link
+                href="/forgot-password"
+                className="text-sm text-blue-600 hover:underline"
+              >
                 Lupa password?
               </Link>
             </div>
@@ -145,7 +174,9 @@ export default function LoginForm() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Atau lanjutkan dengan</span>
+              <span className="bg-white px-2 text-gray-500">
+                Atau lanjutkan dengan
+              </span>
             </div>
           </div>
 
@@ -162,8 +193,11 @@ export default function LoginForm() {
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-sm text-center text-gray-600">
-            Belum punya akun?{' '}
-            <Link href="/register" className="text-blue-600 hover:underline font-medium">
+            Belum punya akun?{" "}
+            <Link
+              href="/register"
+              className="text-blue-600 hover:underline font-medium"
+            >
               Daftar sekarang
             </Link>
           </div>

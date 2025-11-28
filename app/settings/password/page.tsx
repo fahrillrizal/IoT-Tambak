@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import { PasswordSettingsSkeleton } from "@/components/skeletons/ResetPwSkeleton";
 import { ArrowLeft } from "lucide-react";
 
 export default function PasswordResetPage() {
   const router = useRouter();
+  const { status } = useSession();
   const [form, setForm] = useState({
     oldPassword: "",
     newPassword: "",
@@ -44,6 +47,14 @@ export default function PasswordResetPage() {
       setLoading(false);
     }
   };
+
+  if (status === "loading") {
+    return (
+      <DashboardLayout activeMenu="settings">
+        <PasswordSettingsSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout activeMenu="settings">

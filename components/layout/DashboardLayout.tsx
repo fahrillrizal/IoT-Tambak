@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useCallback, ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Activity,
   LayoutDashboard,
@@ -33,12 +34,7 @@ interface DashboardLayoutProps {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  {
-    id: "smart-feeder",
-    label: "Smart Feeder",
-    icon: Zap,
-    href: "/smart-feeder",
-  },
+  { id: "smart-feeder", label: "Smart Feeder", icon: Zap, href: "/smart-feeder" },
   { id: "history", label: "History", icon: History, href: "/history" },
 ];
 
@@ -49,6 +45,7 @@ export default function DashboardLayout({
 }: DashboardLayoutProps) {
   const { data: session } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const toggleSidebar = useCallback(() => {
@@ -57,14 +54,77 @@ export default function DashboardLayout({
 
   const handleNavigation = useCallback(
     (href: string) => {
+      if (pathname === href) return;
       router.push(href);
     },
-    [router]
+    [router, pathname]
   );
 
   const handleLogout = useCallback(() => {
     signOut({ callbackUrl: "/login" });
   }, []);
+
+  const renderNavItem = (item: NavItem, isMobile: boolean = false) => {
+    const Icon = item.icon;
+    const isActive = activeMenu === item.id;
+
+    if (isMobile) {
+      return (
+        <button
+          key={item.id}
+          onClick={() => handleNavigation(item.href)}
+          className={cn(
+            "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all",
+            isActive ? "text-blue-600" : "text-gray-600"
+          )}
+        >
+          <Icon className="h-5 w-5" />
+          <span className="text-xs font-medium">{item.label}</span>
+        </button>
+      );
+    }
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => handleNavigation(item.href)}
+        className={cn(
+          "w-full flex items-center py-3 rounded-lg transition-all",
+          isCollapsed ? "justify-center px-3" : "gap-3 px-4",
+          isActive
+            ? "bg-blue-100 text-blue-600"
+            : "text-gray-600 hover:bg-gray-100"
+        )}
+        title={isCollapsed ? item.label : undefined}
+      >
+        <Icon className="h-5 w-5 shrink-0" />
+        {!isCollapsed && (
+          <span className="font-medium flex-1 text-left">{item.label}</span>
+        )}
+      </button>
+    );
+  };
+
+  const renderSettingsItem = (isMobile: boolean = false) => {
+    const isActive = activeMenu === "settings";
+
+    if (isMobile) {
+      return (
+        <button
+          onClick={() => handleNavigation("/settings")}
+          className={cn(
+            "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all",
+            isActive ? "text-blue-600" : "text-gray-600"
+          )}
+        >
+          <Settings className="h-5 w-5" />
+          <span className="text-xs font-medium">Settings</span>
+        </button>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -73,7 +133,6 @@ export default function DashboardLayout({
         {/* Top Navbar */}
         <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-40">
           <div className="flex items-center justify-between">
-            {/* Left: Logo */}
             <div className="flex items-center gap-2">
               <div className="rounded-lg bg-blue-100 p-1.5">
                 <Activity className="h-4 w-4 text-blue-600" />
@@ -81,7 +140,6 @@ export default function DashboardLayout({
               <h1 className="text-lg font-bold text-gray-900">IoT Tambak</h1>
             </div>
 
-            {/* Right: QR, Notif, Logout */}
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="sm" className="text-gray-600" aria-label="Scan QR Device">
                 <QrCode className="h-5 w-5" />
@@ -94,13 +152,7 @@ export default function DashboardLayout({
                   </span>
                 )}
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="text-gray-600"
-                aria-label="Logout"
-              >
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-600" aria-label="Logout">
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>
@@ -108,37 +160,15 @@ export default function DashboardLayout({
         </header>
 
         {/* Page Content (Mobile) */}
-        <main className="p-4">{children}</main>
+        <main className="p-4 pb-24">
+          {children}
+        </main>
 
         {/* Bottom Navigation Bar */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
           <div className="flex items-center justify-around px-2 py-2">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeMenu === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleNavigation(item.href)}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
-                    isActive ? "text-blue-600" : "text-gray-600"
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-xs font-medium">{item.label}</span>
-                </button>
-              );
-            })}
-            <button
-              onClick={() => handleNavigation("/settings")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
-                activeMenu === "settings" ? "text-blue-600" : "text-gray-600"
-              }`}
-            >
-              <Settings className="h-5 w-5" />
-              <span className="text-xs font-medium">Settings</span>
-            </button>
+            {NAV_ITEMS.map((item) => renderNavItem(item, true))}
+            {renderSettingsItem(true)}
           </div>
         </nav>
       </div>
@@ -146,79 +176,51 @@ export default function DashboardLayout({
       {/* ========== DESKTOP (lg+) ========== */}
       <div className="hidden lg:flex">
         {/* Sidebar */}
-        <div className={`${isCollapsed ? "w-20" : "w-64"} shrink-0 transition-all duration-300`}>
+        <div className={cn("shrink-0 transition-all duration-300", isCollapsed ? "w-20" : "w-64")}>
           <aside
-            className={`${
+            className={cn(
+              "bg-white border-r border-gray-200 flex flex-col transition-all duration-300 h-screen fixed left-0 top-0 overflow-y-auto z-30",
               isCollapsed ? "w-20" : "w-64"
-            } bg-white border-r border-gray-200 flex flex-col transition-all duration-300 h-screen fixed left-0 top-0 overflow-y-auto z-30`}
+            )}
           >
             {/* Logo */}
-            <div className={`flex items-center gap-3 mb-8 ${isCollapsed ? "p-4 justify-center" : "p-6"}`}>
+            <div className={cn("flex items-center gap-3 mb-8", isCollapsed ? "p-4 justify-center" : "p-6")}>
               <div className="rounded-lg bg-blue-100 p-2">
                 <Activity className="h-5 w-5 text-blue-600" />
               </div>
-              {!isCollapsed && (
-                <h1 className="text-xl font-bold text-gray-900">IoT Tambak</h1>
-              )}
+              {!isCollapsed && <h1 className="text-xl font-bold text-gray-900">IoT Tambak</h1>}
             </div>
 
             {/* Navigation */}
-            <nav className={`flex-1 space-y-1 ${isCollapsed ? "px-2" : "px-4"}`}>
-              {NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeMenu === item.id;
-
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleNavigation(item.href)}
-                    className={`w-full flex items-center ${
-                      isCollapsed ? "justify-center px-3" : "gap-3 px-4"
-                    } py-3 rounded-lg transition-colors ${
-                      isActive ? "bg-blue-100 text-blue-600" : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                    title={isCollapsed ? item.label : undefined}
-                  >
-                    <Icon className="h-5 w-5 shrink-0" />
-                    {!isCollapsed && <span className="font-medium">{item.label}</span>}
-                  </button>
-                );
-              })}
+            <nav className={cn("flex-1 space-y-1", isCollapsed ? "px-2" : "px-4")}>
+              {NAV_ITEMS.map((item) => renderNavItem(item, false))}
             </nav>
 
             {/* User Info */}
-            <div className={`border-t border-gray-200 ${isCollapsed ? "p-2" : "p-4"}`}>
+            <div className={cn("border-t border-gray-200", isCollapsed ? "p-2" : "p-4")}>
               <div
-                onClick={() => router.push("/settings")}
-                className={`flex cursor-pointer items-center ${
+                onClick={() => handleNavigation("/settings")}
+                className={cn(
+                  "flex cursor-pointer items-center hover:bg-gray-50 rounded-lg transition-colors",
                   isCollapsed ? "justify-center p-2" : "gap-3 p-2"
-                } hover:bg-gray-50 rounded-lg transition-colors`}
+                )}
                 title={isCollapsed ? "Pengaturan Akun" : undefined}
               >
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 relative">
                   {session?.user?.image ? (
-                    <img
-                      src={session.user.image}
-                      alt={session?.user?.name || "User"}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={session.user.image} alt={session?.user?.name || "User"} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-blue-600 flex items-center justify-center">
                       <span className="text-white font-semibold text-sm">
-                        {session?.user?.name?.[0]?.toUpperCase() ||
-                          session?.user?.email?.[0]?.toUpperCase() ||
-                          "U"}
+                        {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}
                       </span>
                     </div>
                   )}
                 </div>
-
-                {/* User Details */}
                 {!isCollapsed && (
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{session?.user?.email}</p>
-                    <p className="text-xs text-gray-500">{session?.user?.username}</p>
+                    <p className="text-xs text-gray-500">{session?.user?.username || "Pengguna"}</p>
                   </div>
                 )}
               </div>
@@ -231,24 +233,16 @@ export default function DashboardLayout({
           {/* Header */}
           <header className="bg-white border-b border-gray-200 px-8 py-4 sticky top-0 z-20">
             <div className="flex items-center justify-between">
-              {/* Left: Toggle Sidebar */}
-              <button
-                onClick={toggleSidebar}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Toggle sidebar"
-              >
+              <button onClick={toggleSidebar} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="Toggle sidebar">
                 <Menu className="h-5 w-5 text-gray-600" />
               </button>
 
-              {/* Right: Actions */}
               <div className="flex items-center gap-2">
-                {/* Scan QR */}
                 <Button variant="ghost" size="sm" className="text-gray-600">
                   <QrCode className="h-5 w-5 mr-2" />
                   <span className="hidden sm:inline">Scan QR Device</span>
                 </Button>
 
-                {/* Notifications */}
                 <Button variant="ghost" size="sm" className="relative">
                   <Bell className="h-5 w-5 text-gray-600" />
                   {notificationCount > 0 && (
@@ -258,7 +252,6 @@ export default function DashboardLayout({
                   )}
                 </Button>
 
-                {/* Logout */}
                 <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-600">
                   <LogOut className="h-5 w-5 mr-2" />
                   <span className="hidden sm:inline">Logout</span>
@@ -268,10 +261,11 @@ export default function DashboardLayout({
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-8 overflow-auto">{children}</main>
+          <main className="flex-1 p-8 overflow-auto">
+            {children}
+          </main>
         </div>
       </div>
     </div>
   );
 }
- 

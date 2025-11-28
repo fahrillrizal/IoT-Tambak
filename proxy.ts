@@ -17,9 +17,7 @@ export async function proxy(request: NextRequest) {
 
   const sessionToken =
     request.cookies.get("__Secure-authjs.session-token")?.value ||
-    request.cookies.get("authjs.session-token")?.value ||
-    request.cookies.get("__Secure-next-auth.session-token")?.value ||
-    request.cookies.get("next-auth.session-token")?.value;
+    request.cookies.get("authjs.session-token")?.value;
 
   const hasSession = !!sessionToken;
 
@@ -31,9 +29,19 @@ export async function proxy(request: NextRequest) {
   );
 
   if (isProtectedRoute && !hasSession) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
+    // Simpan intended URL di cookie untuk dibaca oleh client
+    const response = NextResponse.redirect(new URL("/login", request.url));
+    
+    // Hanya set cookie jika bukan dari root
+    if (pathname !== "/") {
+      response.cookies.set("auth-redirect", pathname, {
+        httpOnly: false,
+        maxAge: 60 * 5, // 5 menit
+        path: "/",
+      });
+    }
+    
+    return response;
   }
 
   if (isAuthRoute && hasSession) {
