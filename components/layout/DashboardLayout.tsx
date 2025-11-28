@@ -22,6 +22,7 @@ import {
   Menu,
   Settings,
 } from "lucide-react";
+import Link from "next/link";
 
 export type MenuType = "dashboard" | "smart-feeder" | "history" | "settings";
 
@@ -63,7 +64,6 @@ export default function DashboardLayout({
   const [transitionsEnabled, setTransitionsEnabled] = useState(false);
 
   useEffect(() => {
-    // Enable transitions after initial render to prevent flash
     const timer = setTimeout(() => setTransitionsEnabled(true), 300);
     return () => clearTimeout(timer);
   }, []);
@@ -158,12 +158,12 @@ export default function DashboardLayout({
         {/* Top Navbar */}
         <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-40">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2">
               <div className="rounded-lg bg-blue-100 p-1.5">
                 <Activity className="h-4 w-4 text-blue-600" />
               </div>
               <h1 className="text-lg font-bold text-gray-900">IoT Tambak</h1>
-            </div>
+            </Link>
 
             <div className="flex items-center gap-1">
               <Button
@@ -230,7 +230,8 @@ export default function DashboardLayout({
             )}
           >
             {/* Logo */}
-            <div
+            <Link
+              href="/"
               className={cn(
                 "flex items-center gap-3 mb-8",
                 isCollapsed ? "p-4 justify-center" : "p-6"
@@ -239,10 +240,11 @@ export default function DashboardLayout({
               <div className="rounded-lg bg-blue-100 p-2">
                 <Activity className="h-5 w-5 text-blue-600" />
               </div>
+
               {!isCollapsed && (
                 <h1 className="text-xl font-bold text-gray-900">IoT Tambak</h1>
               )}
-            </div>
+            </Link>
 
             {/* Navigation */}
             <nav
@@ -263,9 +265,7 @@ export default function DashboardLayout({
                 className={cn(
                   "flex cursor-pointer items-center rounded-lg transition-colors",
                   isCollapsed ? "justify-center p-2" : "gap-3 p-2",
-                  activeMenu === "settings"
-                    ? "bg-blue-100"
-                    : "hover:bg-gray-50"
+                  activeMenu === "settings" ? "bg-blue-100" : "hover:bg-gray-50"
                 )}
                 title={isCollapsed ? "Pengaturan Akun" : undefined}
               >
