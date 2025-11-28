@@ -6,7 +6,6 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { prisma } from "./db";
 
-// Type augmentation untuk NextAuth v5
 declare module "next-auth" {
   interface Session {
     user: {
@@ -26,7 +25,6 @@ declare module "next-auth" {
   }
 }
 
-// Type augmentation untuk JWT di NextAuth v5
 declare module "@auth/core/jwt" {
   interface JWT {
     id: string;
@@ -96,22 +94,105 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       allowDangerousEmailAccountLinking: true,
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture,
+          username: profile.email?.split("@")[0] || profile.sub,
+        };
+      },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.username = user.username || "";
+    async signIn({ user, account, profile }) {
+      if (account?.provider === "google" && profile?.email) {
+        try {
+          const existingUser = await prisma.user.findUnique({
+            where: { email: profile.email },
+            include: { accounts: true },
+          });
+
+          if (existingUser) {
+            const hasGoogleAccount = existingUser.accounts.some(
+              (acc) => acc.provider === "google"
+            );
+
+            if (!hasGoogleAccount) {
+              await prisma.account.create({
+                data: {
+                  userId: existingUser.id,
+                  type: account.type,
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                  access_token: account.access_token,
+                  refresh_token: account.refresh_token,
+                  expires_at: account.expires_at,
+                  token_type: account.token_type,
+                  scope: account.scope,
+                  id_token: account.id_token,
+                },
+              });
+            }
+
+            await prisma.user.update({
+              where: { id: existingUser.id },
+              data: {
+                name: existingUser.name || profile.name,
+                image: existingUser.image || profile.picture,
+                username: existingUser.username || profile.email?.split("@")[0],
+              },
+            });
+          }
+
+          return true;
+        } catch (error) {
+          console.error("Error in signIn callback:", error);
+          return true;
+        }
       }
+
+      return true;
+    },
+    async jwt({ token, user, account, trigger }) {
+      if (user) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email! },
+        });
+
+        if (dbUser) {
+          token.id = dbUser.id.toString();
+          token.username = dbUser.username || "";
+          token.email = dbUser.email;
+          token.name = dbUser.name || "";
+          token.picture = dbUser.image || "";
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id as string;
         session.user.username = (token.username as string) || "";
+        session.user.email = token.email || "";
+        session.user.name = (token.name as string) || "";
+        session.user.image = (token.picture as string) || "";
       }
       return session;
+    },
+  },
+  events: {
+    async createUser({ user }) {
+      if (user.email && !user.username) {
+        await prisma.user.update({
+          where: { email: user.email },
+          data: {
+            username: user.email.split("@")[0],
+          },
+        });
+      }
     },
   },
   pages: {
