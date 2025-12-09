@@ -1,5 +1,5 @@
 {
-  "cron": [
+  "crons": [
     {
       "path": "/api/cron/daily-summary",
       "schedule": "5 0 * * *"
