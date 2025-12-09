@@ -44,7 +44,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const qrDataUrl = await generateQRCode(deviceId);
+    const requestUrl = new URL(request.url);
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      `${requestUrl.protocol}//${requestUrl.host}`;
+    const claimUrl = `${baseUrl.replace(/\/$/, "")}/claim?deviceId=${encodeURIComponent(
+      deviceId
+    )}`;
+
+    const qrDataUrl = await generateQRCode(claimUrl);
 
     return NextResponse.json({
       success: true,
@@ -52,6 +60,7 @@ export async function GET(request: NextRequest) {
         qrCode: qrDataUrl,
         deviceId: deviceId,
         deviceName: device.name,
+        claimUrl,
       },
     });
   } catch (error) {

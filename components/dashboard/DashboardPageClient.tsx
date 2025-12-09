@@ -30,6 +30,8 @@ export default function DashboardPageClient({ defaultCollapsed }: DashboardPageC
     );
   }
 
+  const hasDevices = devices.length > 0;
+
   return (
     <DashboardLayout activeMenu="dashboard" notificationCount={totalNotifications} defaultCollapsed={defaultCollapsed}>
       {/* Page Header with Device Selector */}
@@ -68,20 +70,32 @@ export default function DashboardPageClient({ defaultCollapsed }: DashboardPageC
         </div>
       )}
 
-      {/* Sensor Cards */}
-      <div className="mb-6 lg:mb-8">
-        <SensorCardsGrid sensorData={sensorData} />
-      </div>
+      {hasDevices ? (
+        <>
+          {/* Sensor Cards */}
+          <div className="mb-6 lg:mb-8">
+            <SensorCardsGrid sensorData={sensorData} />
+          </div>
 
-      {/* Charts Section */}
-      <div className="mb-6 lg:mb-8">
-        <ChartsSection trendData={weeklyChartData} />
-      </div>
+          {/* Charts Section */}
+          <div className="mb-6 lg:mb-8">
+            <ChartsSection trendData={weeklyChartData} />
+          </div>
 
-      {/* Feeding Schedule */}
-      <div className="mb-20 lg:mb-0">
-        <FeedingScheduleCard schedules={schedules} />
-      </div>
+          {/* Feeding Schedule */}
+          <div className="mb-20 lg:mb-0">
+            <FeedingScheduleCard schedules={schedules} />
+          </div>
+        </>
+      ) : (
+        <div className="mb-20 lg:mb-0">
+          <div className="bg-white border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-600">
+            <p className="text-lg font-semibold text-gray-800 mb-2">Belum ada perangkat</p>
+            <p className="text-sm mb-2">Tambahkan perangkat terlebih dahulu atau scan QR perangkat Anda.</p>
+            <p className="text-xs text-gray-500">Tombol "Scan QR Device" ada di bagian kanan atas.</p>
+          </div>
+        </div>
+      )}
 
       <SetPasswordModal isOpen={showModal} onClose={handleClose} onSuccess={handlePasswordSet} />
     </DashboardLayout>

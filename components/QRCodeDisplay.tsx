@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Download, Loader2, AlertCircle, Copy, CheckCircle2 } from "lucide-react";
+import { Download, Loader2, AlertCircle, Copy, CheckCircle2, ExternalLink, Share2 } from "lucide-react";
 
 interface QRCodeDisplayProps {
   deviceId: string;
@@ -20,9 +20,21 @@ export function QRCodeDisplay({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const claimUrl = useMemo(() => {
+    if (!deviceId) return "";
+    if (typeof window === "undefined") return `https://example.com/claim?deviceId=${encodeURIComponent(deviceId)}`;
+    return `${window.location.origin}/claim?deviceId=${encodeURIComponent(deviceId)}`;
+  }, [deviceId]);
 
   useEffect(() => {
     const generateQR = async () => {
+      if (!deviceId) {
+        setError("Device ID tidak tersedia");
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         const response = await fetch(
@@ -62,6 +74,30 @@ export function QRCodeDisplay({
     navigator.clipboard.writeText(deviceId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyLink = () => {
+    if (!claimUrl) return;
+    navigator.clipboard.writeText(claimUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleOpenLink = () => {
+    if (!claimUrl) return;
+    window.open(claimUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleShare = async () => {
+    if (!claimUrl || !navigator.share) {
+      handleCopyLink();
+      return;
+    }
+    try {
+      await navigator.share({ title: `QR ${deviceName}`, text: `Device ID: ${deviceId}`, url: claimUrl });
+    } catch (e) {
+      // ignore cancel
+    }
   };
 
   return (
@@ -116,6 +152,30 @@ export function QRCodeDisplay({
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded text-sm space-y-2">
+                <p className="font-semibold text-gray-900">Link langsung:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-white p-2 rounded border border-gray-200 text-xs font-mono truncate">
+                    {claimUrl || "(link tidak tersedia)"}
+                  </code>
+                  <Button variant="ghost" size="sm" onClick={handleCopyLink} className="shrink-0">
+                    {copiedLink ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleOpenLink} disabled={!claimUrl}>
+                    <ExternalLink className="h-4 w-4 mr-1" /> Buka
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleShare} disabled={!claimUrl}>
+                    <Share2 className="h-4 w-4 mr-1" /> Share/Copy
                   </Button>
                 </div>
               </div>

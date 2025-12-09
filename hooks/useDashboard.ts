@@ -182,9 +182,9 @@ export function useFeedingSchedule() {
 }
 
 export function useDeviceSelection(initialDevice?: string) {
-  const [devices, setDevices] = useState<SensorDevice[]>(SENSOR_DEVICES);
+  const [devices, setDevices] = useState<SensorDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState(
-    initialDevice || devices[0]?.deviceId || ""
+    initialDevice || ""
   );
   const [isLoading, setIsLoading] = useState(true);
 
@@ -194,10 +194,13 @@ export function useDeviceSelection(initialDevice?: string) {
         const response = await fetch('/api/devices');
         const result = await response.json();
         
-        if (result.success && result.data.length > 0) {
-          setDevices(result.data);
-          if (!selectedDevice) {
-            setSelectedDevice(result.data[0].deviceId);
+        if (result.success) {
+          setDevices(result.data || []);
+          if (result.data?.length && !selectedDevice) {
+            setSelectedDevice(result.data[0].deviceId || "");
+          }
+          if (!result.data?.length) {
+            setSelectedDevice("");
           }
         }
       } catch (error) {
@@ -242,12 +245,15 @@ export function useNotifications() {
 }
 
 export function useWeeklyChart(deviceId?: string) {
-  const [chartData, setChartData] = useState<ChartData>(TREND_CHART_DATA);
+  const [chartData, setChartData] = useState<ChartData>({ labels: [], datasets: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchWeeklyData = useCallback(async (id?: string) => {
-    if (!id) return;
+    if (!id) {
+      setChartData({ labels: [], datasets: [] });
+      return;
+    }
 
     setIsLoading(true);
     setError(null);

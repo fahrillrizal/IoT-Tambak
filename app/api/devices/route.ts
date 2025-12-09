@@ -105,6 +105,7 @@ export async function GET(request: NextRequest) {
           id: device.id,
           name: device.name,
           deviceId: device.thingsboardDeviceId || "", 
+          thingsboardDeviceId: device.thingsboardDeviceId || "",
           deviceToken: device.deviceToken,
           deviceType: device.deviceType,
           isOnline,

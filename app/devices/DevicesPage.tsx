@@ -17,6 +17,7 @@ interface Device {
   id: number;
   name: string;
   deviceType: string;
+  deviceId?: string;
   thingsboardDeviceId: string;
   pondId: number;
   pondName: string;
@@ -99,6 +100,7 @@ export default function DevicesPageClient({
   };
 
   const selectedDevice = devices.find((d) => d.id === selectedDeviceId);
+  const selectedTbId = selectedDevice?.thingsboardDeviceId || selectedDevice?.deviceId || "";
 
   return (
     <DashboardLayout activeMenu="devices" defaultCollapsed={defaultCollapsed}>
@@ -184,7 +186,7 @@ export default function DevicesPageClient({
             {selectedDevice ? (
               <div className="space-y-4">
                 <QRCodeDisplay
-                  deviceId={selectedDevice.thingsboardDeviceId}
+                  deviceId={selectedTbId}
                   deviceName={selectedDevice.name}
                 />
 
@@ -243,7 +245,7 @@ export default function DevicesPageClient({
                         Device ID (ThingsBoard)
                       </label>
                       <div className="mt-1 bg-gray-100 p-2 rounded text-xs font-mono break-all">
-                        {selectedDevice.thingsboardDeviceId}
+                        {selectedTbId || "(tidak ada)"}
                       </div>
                     </div>
 
