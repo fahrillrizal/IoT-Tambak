@@ -2,6 +2,12 @@ import axios from 'axios';
 
 const TB_URL = process.env.TB_URL;
 
+// Use a dedicated axios instance with baseURL + timeout so network failures fail fast in prod.
+const tbApi = axios.create({
+  baseURL: TB_URL,
+  timeout: 8000,
+});
+
 class ThingsBoardService {
   private token: string | null = null;
   private refreshToken: string | null = null;
@@ -26,7 +32,11 @@ class ThingsBoardService {
   }
 
   async login() {
-    const response = await axios.post(`${TB_URL}/api/auth/login`, {
+    if (!TB_URL) {
+      throw new Error('TB_URL not configured');
+    }
+
+    const response = await tbApi.post(`/api/auth/login`, {
       username: process.env.TB_USERNAME,
       password: process.env.TB_PASSWORD,
     });
@@ -37,7 +47,7 @@ class ThingsBoardService {
   }
 
   async refresh() {
-    const response = await axios.post(`${TB_URL}/api/auth/token`, {
+    const response = await tbApi.post(`/api/auth/token`, {
       refreshToken: this.refreshToken,
     });
 
@@ -48,7 +58,7 @@ class ThingsBoardService {
 
   async get<T = any>(endpoint: string): Promise<T> {
     await this.ensureAuthenticated();
-    const response = await axios.get<T>(`${TB_URL}${endpoint}`, {
+    const response = await tbApi.get<T>(endpoint, {
       headers: { 'X-Authorization': `Bearer ${this.token}` },
     });
     return response.data;
@@ -56,7 +66,7 @@ class ThingsBoardService {
 
   async post<T = any>(endpoint: string, data: any): Promise<T> {
     await this.ensureAuthenticated();
-    const response = await axios.post<T>(`${TB_URL}${endpoint}`, data, {
+    const response = await tbApi.post<T>(endpoint, data, {
       headers: { 'X-Authorization': `Bearer ${this.token}` },
     });
     return response.data;

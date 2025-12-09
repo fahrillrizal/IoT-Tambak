@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node server.js",
+    "dev": "tsx server.ts",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
@@ -32,6 +32,7 @@
     "mqtt": "^5.14.1",
     "next": "^16.0.7",
     "next-auth": "^5.0.0-beta.30",
+    "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
     "pusher": "^5.2.0",
     "pusher-js": "^8.4.0",

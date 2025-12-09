@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { thingsboardService } from '@/lib/thingsboard';
 
 export async function GET(request: NextRequest) {
@@ -19,88 +20,112 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const keys = ['temperature', 'ph', 'dissolvedOxygen', 'salinity', 'turbidity'];
-    const endTs = Date.now();
-    const startTs = endTs - 7 * 24 * 60 * 60 * 1000; // 7 hari
+    // Cari pond dari device; jika tidak ada, kembalikan grafik kosong (no data)
+    const device = await prisma.device.findUnique({
+      where: { thingsboardDeviceId: deviceId },
+      select: { pondId: true },
+    });
 
-    const history = await thingsboardService.getTelemetryHistory(
-      deviceId,
-      keys,
-      startTs,
-      endTs,
-      2000 // Lebih banyak data untuk 7 hari
-    );
+    const labels: string[] = [];
+    const dayNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
-    // Group data by day dan hitung rata-rata per hari
-    const dailyAverages: Record<string, Record<string, number[]>> = {};
-    
-    for (const [key, values] of Object.entries(history)) {
-      if (!Array.isArray(values)) continue;
-      
-      for (const item of values) {
-        const date = new Date(item.ts);
-        // Format date ke local timezone (Asia/Jakarta)
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const dayKey = `${year}-${month}-${day}`;
-        
-        if (!dailyAverages[dayKey]) {
-          dailyAverages[dayKey] = {};
-        }
-        
-        if (!dailyAverages[dayKey][key]) {
-          dailyAverages[dayKey][key] = [];
-        }
-        
-        dailyAverages[dayKey][key].push(parseFloat(item.value));
-      }
+    if (!device) {
+      for (let i = 0; i < 7; i++) labels.push(dayNames[i]);
+      return NextResponse.json({
+        success: true,
+        data: {
+          labels,
+          datasets: [
+            { label: 'Suhu (°C)', data: Array(7).fill(null) },
+            { label: 'pH', data: Array(7).fill(null) },
+            { label: 'Oksigen (mg/L)', data: Array(7).fill(null) },
+            { label: 'Salinitas (ppt)', data: Array(7).fill(null) },
+            { label: 'Turbidity (NTU)', data: Array(7).fill(null) },
+          ],
+          message: 'Device tidak ditemukan',
+        },
+      });
     }
 
     // Generate 7 hari terakhir (Senin - Minggu) dari hari ini
     const today = new Date();
-    const currentDay = today.getDay(); // 0=Minggu, 1=Senin, dst
+    const currentDay = today.getDay();
     
     // Hitung offset ke Senin minggu ini
     const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1;
     const mondayThisWeek = new Date(today);
     mondayThisWeek.setDate(today.getDate() - daysFromMonday);
     mondayThisWeek.setHours(0, 0, 0, 0);
-    
-    const chartData: Record<string, number[]> = {
+
+    const keys = ['temperature', 'ph', 'dissolvedOxygen', 'salinity', 'turbidity'];
+    const chartData: Record<string, (number | null)[]> = {
       temperature: [],
       ph: [],
       dissolvedOxygen: [],
       salinity: [],
       turbidity: [],
     };
-    
-    const labels: string[] = [];
-    
-    // Day labels in Indonesian (Senin - Minggu)
-    const dayNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-    
-    // Generate data untuk 7 hari (Senin - Minggu)
+
+    // Loop untuk 7 hari
     for (let i = 0; i < 7; i++) {
       const currentDate = new Date(mondayThisWeek);
       currentDate.setDate(mondayThisWeek.getDate() + i);
-      
-      // Format ke local date string
-      const year = currentDate.getFullYear();
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const day = String(currentDate.getDate()).padStart(2, '0');
-      const dayKey = `${year}-${month}-${day}`;
-      
+      const dayKey = currentDate.toISOString().split('T')[0];
+      const isToday = dayKey === today.toISOString().split('T')[0];
+
       labels.push(dayNames[i]);
-      
-      for (const key of keys) {
-        const values = dailyAverages[dayKey]?.[key] || [];
-        if (values.length > 0) {
-          const avg = values.reduce((a, b) => a + b, 0) / values.length;
-          chartData[key].push(parseFloat(avg.toFixed(2)));
+
+      if (isToday) {
+        // Untuk hari ini: ambil dari ThingsBoard (real-time), jika gagal -> null
+        try {
+          const endOfDay = new Date(today);
+          endOfDay.setHours(23, 59, 59, 999);
+
+          const history = await thingsboardService.getTelemetryHistory(
+            deviceId,
+            keys,
+            currentDate.getTime(),
+            endOfDay.getTime(),
+            1000
+          );
+
+          for (const key of keys) {
+            const values = history[key];
+            if (Array.isArray(values) && values.length > 0) {
+              const avg = values.reduce((sum, item) => sum + parseFloat(item.value), 0) / values.length;
+              chartData[key].push(parseFloat(avg.toFixed(2)));
+            } else {
+              chartData[key].push(null);
+            }
+          }
+        } catch (err) {
+          console.error('ThingsBoard fetch failed for today:', err);
+          keys.forEach((key) => chartData[key].push(null));
+        }
+      } else {
+        // Untuk hari lain: ambil dari DB (daily summary)
+        const summary = await prisma.dailySummary.findUnique({
+          where: {
+            pondId_date: {
+              pondId: device.pondId,
+              date: dayKey,
+            },
+          },
+        });
+
+        if (summary) {
+          chartData.temperature.push(summary.avgTemperature as any);
+          chartData.ph.push(summary.avgPh as any);
+          chartData.dissolvedOxygen.push(summary.avgDissolvedOxygen as any);
+          chartData.salinity.push(summary.avgSalinity as any);
+          chartData.turbidity.push(summary.avgTurbidity as any);
         } else {
-          // Push null untuk hari tanpa data (Chart.js akan skip point ini)
-          chartData[key].push(null as any);
+          // Jika tidak ada data di DB, tampilkan null (tidak fetch ThingsBoard untuk hari lampau)
+          chartData.temperature.push(null);
+          chartData.ph.push(null);
+          chartData.dissolvedOxygen.push(null);
+          chartData.salinity.push(null);
+          chartData.turbidity.push(null);
         }
       }
     }
@@ -117,7 +142,7 @@ export async function GET(request: NextRequest) {
             backgroundColor: 'transparent',
             tension: 0.4,
             fill: false,
-            spanGaps: false, // Jangan connect titik dengan gap
+            spanGaps: false,
           },
           {
             label: 'pH',
@@ -157,8 +182,6 @@ export async function GET(request: NextRequest) {
           },
         ],
       },
-      startTs,
-      endTs,
     });
   } catch (error) {
     console.error('Weekly telemetry fetch error:', error);
