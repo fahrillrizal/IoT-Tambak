@@ -1,0 +1,26 @@
+name: Cron Jobs - Hourly & Daily Summary
+
+on:
+  schedule:
+    # Hourly - every hour at minute 5
+    - cron: '5 * * * *'
+    # Daily - every day at 00:05 UTC
+    - cron: '5 0 * * *'
+
+jobs:
+  cron-tasks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger hourly summary
+        run: |
+          curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/hourly-summary \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
+
+      - name: Trigger daily summary (if hour is 0)
+        run: |
+          if [ $(date -u +%H) -eq 0 ]; then
+            curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/daily-summary \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -H "Content-Type: application/json"
+          fi
