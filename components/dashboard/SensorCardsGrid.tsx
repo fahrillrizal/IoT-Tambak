@@ -3,14 +3,15 @@
 
 import { Thermometer, Droplets, Wind, Waves, Eye } from "lucide-react";
 import SensorCard from "./SensorCard";
-import type { SensorData } from "@/types/dashboard";
+import type { TelemetryData } from "@/types/dashboard";
 import { PARAMETER_THRESHOLDS } from "@/constants/dashboard";
 
 interface SensorCardsGridProps {
-  sensorData: SensorData;
+  sensorData: TelemetryData;
 }
 
-function getStatus(value: number, param: keyof typeof PARAMETER_THRESHOLDS): string {
+function getStatus(value: number | null, param: keyof typeof PARAMETER_THRESHOLDS): string {
+  if (value === null || value === undefined) return "Warning";
   const threshold = PARAMETER_THRESHOLDS[param];
 
   if ("min" in threshold && "max" in threshold) {
@@ -30,7 +31,7 @@ export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
   const sensors = [
     {
       title: "Suhu Air",
-      value: sensorData.temperature,
+      value: sensorData.temperature ?? "-",
       unit: "°C",
       status: getStatus(sensorData.temperature, "temperature"),
       icon: <Thermometer className="h-5 w-5" />,
@@ -38,7 +39,7 @@ export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
     },
     {
       title: "pH Air",
-      value: sensorData.ph,
+      value: sensorData.ph ?? "-",
       unit: "",
       status: getStatus(sensorData.ph, "ph"),
       icon: <Droplets className="h-5 w-5" />,
@@ -46,7 +47,7 @@ export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
     },
     {
       title: "Oksigen Terlarut",
-      value: sensorData.dissolvedOxygen,
+      value: sensorData.dissolvedOxygen ?? "-",
       unit: " mg/L",
       status: getStatus(sensorData.dissolvedOxygen, "dissolvedOxygen"),
       icon: <Wind className="h-5 w-5" />,
@@ -54,7 +55,7 @@ export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
     },
     {
       title: "Salinitas",
-      value: sensorData.salinity,
+      value: sensorData.salinity ?? "-",
       unit: " ppt",
       status: getStatus(sensorData.salinity, "salinity"),
       icon: <Waves className="h-5 w-5" />,
@@ -62,7 +63,7 @@ export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
     },
     {
       title: "Turbidity",
-      value: sensorData.turbidity,
+      value: sensorData.turbidity ?? "-",
       unit: " NTU",
       status: getStatus(sensorData.turbidity, "turbidity"),
       icon: <Eye className="h-5 w-5" />,

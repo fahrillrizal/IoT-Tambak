@@ -42,29 +42,31 @@ export default function DashboardPageClient({ defaultCollapsed }: DashboardPageC
       </div>
 
       {/* Pond Selector Info Card */}
-      <div className="mb-4 lg:mb-6">
-        <div className="bg-white border border-gray-200 border-l-4 border-l-blue-500 rounded-md p-3 lg:p-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Activity className="h-5 w-5" />
-              <span className="text-gray-800 font-medium">{currentDevice.name}</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-gray-600">
-                <MapPin className="h-4 w-4" />
-                <span className="text-sm">Kolam A1</span>
+      {currentDevice && (
+        <div className="mb-4 lg:mb-6">
+          <div className="bg-white border border-gray-200 border-l-4 border-l-blue-500 rounded-md p-3 lg:p-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Activity className="h-5 w-5" />
+                <span className="text-gray-800 font-medium">{currentDevice.name}</span>
               </div>
-              <div className="flex items-center gap-2">
-                {currentDevice.isOnline ? (
-                  <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium">Online</span>
-                ) : (
-                  <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm font-medium">Offline</span>
-                )}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-gray-600">
+                  <MapPin className="h-4 w-4" />
+                  <span className="text-sm">{currentDevice.pondName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {currentDevice.isOnline ? (
+                    <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium">Online</span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm font-medium">Offline</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Sensor Cards */}
       <div className="mb-6 lg:mb-8">

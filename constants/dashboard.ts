@@ -9,7 +9,20 @@ import type {
 // Device ID akan diambil dari ThingsBoard API
 // Ini hanya default fallback jika API gagal
 export const SENSOR_DEVICES: SensorDevice[] = [
-  { id: 1, name: "Sensor-1", deviceId: "", isOnline: true, notifications: 0 },
+  {
+    id: 1,
+    name: "Sensor-1",
+    deviceId: "",
+    thingsboardDeviceId: "",
+    deviceToken: "",
+    deviceType: "SENSOR",
+    isOnline: false,
+    pondId: 0,
+    pondName: "",
+    notifications: 0,
+    createdAt: "",
+    updatedAt: "",
+  },
 ];
 
 export const DEFAULT_SENSOR_DATA: SensorData = {
@@ -22,10 +35,10 @@ export const DEFAULT_SENSOR_DATA: SensorData = {
 };
 
 export const DEFAULT_FEEDING_SCHEDULES: FeedingSchedule[] = [
-  { time: "06:00", amount: 2, status: "completed" },
-  { time: "12:00", amount: 2.5, status: "completed" },
-  { time: "18:00", amount: 2, status: "pending" },
-  { time: "22:00", amount: 1.5, status: "pending" },
+  { id: 1, time: "06:00", amount: 2, status: "completed", isActive: true },
+  { id: 2, time: "12:00", amount: 2.5, status: "completed", isActive: true },
+  { id: 3, time: "18:00", amount: 2, status: "pending", isActive: true },
+  { id: 4, time: "22:00", amount: 1.5, status: "pending", isActive: true },
 ];
 
 export const PARAMETER_THRESHOLDS = {
@@ -92,6 +105,8 @@ export const FEEDING_CHART_DATA: ChartData = {
       data: [3, 4, 3, 4, 3, 4, 3],
       backgroundColor: "rgba(139, 92, 246, 0.8)",
       borderColor: "rgba(139, 92, 246, 0.8)",
+      tension: 0.4,
+      fill: true,
       borderRadius: 8,
     },
   ],

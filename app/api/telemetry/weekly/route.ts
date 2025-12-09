@@ -104,11 +104,12 @@ export async function GET(request: NextRequest) {
         }
       } else {
         // Untuk hari lain: ambil dari DB (daily summary)
+        // Prisma expects a Date object for the 'date' field
         const summary = await prisma.dailySummary.findUnique({
           where: {
             pondId_date: {
               pondId: device.pondId,
-              date: dayKey,
+              date: new Date(dayKey),
             },
           },
         });

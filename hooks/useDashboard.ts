@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import type {
-  SensorData,
+  TelemetryData,
   FeedingSchedule,
   SensorDevice,
   ChartData,
@@ -64,7 +64,7 @@ export function usePasswordCheck() {
 }
 
 export function useSensorData(deviceId?: string) {
-  const [sensorData, setSensorData] = useState<SensorData>(DEFAULT_SENSOR_DATA);
+  const [sensorData, setSensorData] = useState<TelemetryData | null>(DEFAULT_SENSOR_DATA as TelemetryData);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,12 +80,12 @@ export function useSensorData(deviceId?: string) {
 
       if (result.success) {
         setSensorData({
-          temperature: result.data.temperature || 0,
-          ph: result.data.ph || 0,
-          dissolvedOxygen: result.data.dissolvedOxygen || 0,
-          salinity: result.data.salinity || 0,
-          turbidity: result.data.turbidity || 0,
-          status: result.data.status || "Normal",
+          temperature: result.data.temperature ?? null,
+          ph: result.data.ph ?? null,
+          dissolvedOxygen: result.data.dissolvedOxygen ?? null,
+          salinity: result.data.salinity ?? null,
+          turbidity: result.data.turbidity ?? null,
+          status: result.data.status ?? "Offline",
         });
       } else {
         setError(result.error);
@@ -112,12 +112,12 @@ export function useSensorData(deviceId?: string) {
           const unsubscribe = subscribeToDeviceTelemetry(deviceId, (data) => {
             console.log('📡 Realtime update from Pusher:', data);
             setSensorData({
-              temperature: data.temperature || 0,
-              ph: data.ph || 0,
-              dissolvedOxygen: data.dissolvedOxygen || 0,
-              salinity: data.salinity || 0,
-              turbidity: data.turbidity || 0,
-              status: data.status || "Normal",
+              temperature: data.temperature ?? null,
+              ph: data.ph ?? null,
+              dissolvedOxygen: data.dissolvedOxygen ?? null,
+              salinity: data.salinity ?? null,
+              turbidity: data.turbidity ?? null,
+              status: data.status ?? "Offline",
             });
           });
           
@@ -129,7 +129,21 @@ export function useSensorData(deviceId?: string) {
     }
   }, [deviceId, fetchSensorData]);
 
-  return { sensorData, isLoading, error, fetchSensorData, setSensorData };
+  return {
+    sensorData:
+      sensorData || {
+        temperature: null,
+        ph: null,
+        dissolvedOxygen: null,
+        salinity: null,
+        turbidity: null,
+        status: "Offline",
+      },
+    isLoading,
+    error,
+    fetchSensorData,
+    setSensorData,
+  };
 }
 
 export function useFeedingSchedule() {
@@ -199,7 +213,7 @@ export function useDeviceSelection(initialDevice?: string) {
   const currentDevice =
     devices.find((d) => d.deviceId === selectedDevice) || devices[0];
   const totalNotifications = devices.reduce(
-    (sum, d) => sum + d.notifications,
+    (sum, d) => sum + (d.notifications ?? 0),
     0
   );
 

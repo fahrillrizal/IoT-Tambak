@@ -58,7 +58,7 @@ export default function FeedingScheduleCard({
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {schedules.map((schedule, index) => {
-            const config = STATUS_CONFIG[schedule.status];
+            const config = STATUS_CONFIG[schedule.status] || STATUS_CONFIG.pending;
             const Icon = config.icon;
 
             return (

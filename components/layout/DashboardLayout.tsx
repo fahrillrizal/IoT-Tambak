@@ -21,10 +21,12 @@ import {
   QrCode,
   Menu,
   Settings,
+  Wifi,
 } from "lucide-react";
 import Link from "next/link";
+import { DeviceScanModal } from "@/components/DeviceScanModal";
 
-export type MenuType = "dashboard" | "smart-feeder" | "history" | "settings";
+export type MenuType = "dashboard" | "smart-feeder" | "history" | "settings" | "devices";
 
 interface NavItem {
   id: MenuType;
@@ -48,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: Zap,
     href: "/smart-feeder",
   },
+  { id: "devices", label: "Devices", icon: Wifi, href: "/devices" },
   { id: "history", label: "History", icon: History, href: "/history" },
 ];
 
@@ -62,6 +65,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const [transitionsEnabled, setTransitionsEnabled] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setTransitionsEnabled(true), 300);
@@ -171,6 +175,7 @@ export default function DashboardLayout({
                 size="sm"
                 className="text-gray-600"
                 aria-label="Scan QR Device"
+                onClick={() => setIsScanModalOpen(true)}
               >
                 <QrCode className="h-5 w-5" />
               </Button>
@@ -329,7 +334,12 @@ export default function DashboardLayout({
               </button>
 
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="text-gray-600">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-600"
+                  onClick={() => setIsScanModalOpen(true)}
+                >
                   <QrCode className="h-5 w-5 mr-2" />
                   <span className="hidden sm:inline">Scan QR Device</span>
                 </Button>
@@ -360,6 +370,12 @@ export default function DashboardLayout({
           <main className="flex-1 p-8 overflow-auto">{children}</main>
         </div>
       </div>
+
+      {/* Scan Modal */}
+      <DeviceScanModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+      />
     </div>
   );
 }
