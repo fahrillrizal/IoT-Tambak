@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { saveDailySummaryForYesterday } from './daily-summary-scheduler';
+import { saveHourlySummaryForLastHour } from './hourly-summary-scheduler';
 
 let cronJobStarted = false;
 
@@ -21,12 +22,19 @@ export function startCronJobs() {
       }
     });
 
-    // Optional: Jalankan setiap jam untuk debug/testing
-    // const testCron = cron.schedule('0 * * * *', async () => {
-    //   console.log('🧪 Test cron job running at', new Date().toISOString());
-    // });
+    const hourlySummaryCron = cron.schedule('5 * * * *', async () => {
+      console.log('🕐 Starting hourly summary cron job at', new Date().toISOString());
+      try {
+        await saveHourlySummaryForLastHour();
+        console.log('✅ Hourly summary cron job completed successfully');
+      } catch (error) {
+        console.error('❌ Hourly summary cron job failed:', error);
+      }
+    });
+
 
     console.log('✨ Cron jobs initialized:');
+    console.log('  🕐 Hourly Summary: Every hour at minute 05 (UTC)');
     console.log('  📊 Daily Summary: Every day at 00:05 (UTC)');
     console.log('  ⏸️  To stop cron jobs, call stopCronJobs()');
 
@@ -36,6 +44,7 @@ export function startCronJobs() {
     return {
       stop: () => {
         dailySummaryCron.stop();
+        hourlySummaryCron.stop();
         console.log('🛑 Cron jobs stopped');
       },
     };
