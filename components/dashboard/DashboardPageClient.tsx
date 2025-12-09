@@ -7,7 +7,7 @@ import ChartsSection from "@/components/dashboard/ChartsSection";
 import FeedingScheduleCard from "@/components/dashboard/FeedingScheduleCard";
 import SetPasswordModal from "@/components/SetPasswordModal";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
-import { useAuth, useDeviceSelection, useSensorData, useFeedingSchedule, usePasswordCheck } from "@/hooks/useDashboard";
+import { useAuth, useDeviceSelection, useSensorData, useFeedingSchedule, usePasswordCheck, useWeeklyChart } from "@/hooks/useDashboard";
 import { Activity, MapPin } from "lucide-react";
 
 interface DashboardPageClientProps {
@@ -16,12 +16,13 @@ interface DashboardPageClientProps {
 
 export default function DashboardPageClient({ defaultCollapsed }: DashboardPageClientProps) {
   const { status } = useAuth();
-  const { selectedDevice, setSelectedDevice, devices, currentDevice, totalNotifications } = useDeviceSelection();
+  const { selectedDevice, setSelectedDevice, devices, currentDevice, totalNotifications, isLoading: devicesLoading } = useDeviceSelection();
   const { sensorData } = useSensorData(selectedDevice);
   const { schedules } = useFeedingSchedule();
   const { showModal, handlePasswordSet, handleClose } = usePasswordCheck();
+  const { chartData: weeklyChartData } = useWeeklyChart(selectedDevice);
 
-  if (status === "loading") {
+  if (status === "loading" || devicesLoading) {
     return (
       <DashboardLayout activeMenu="dashboard" defaultCollapsed={defaultCollapsed}>
         <DashboardSkeleton />
@@ -72,7 +73,7 @@ export default function DashboardPageClient({ defaultCollapsed }: DashboardPageC
 
       {/* Charts Section */}
       <div className="mb-6 lg:mb-8">
-        <ChartsSection />
+        <ChartsSection trendData={weeklyChartData} />
       </div>
 
       {/* Feeding Schedule */}

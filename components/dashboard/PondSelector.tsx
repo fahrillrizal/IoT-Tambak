@@ -21,7 +21,7 @@ export default function PondSelector({
   selectedDevice,
   onDeviceChange,
 }: PondSelectorProps) {
-  const currentDevice = devices.find((d) => d.name === selectedDevice);
+  const currentDevice = devices.find((d) => d.deviceId === selectedDevice);
 
   return (
     <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -32,7 +32,7 @@ export default function PondSelector({
         >
           <div className="flex items-center justify-between w-full">
             <span className="text-gray-700 font-medium truncate">
-              {selectedDevice}
+              {currentDevice?.name || selectedDevice}
             </span>
             <div className="flex items-center gap-2 ml-3 shrink-0">
               {currentDevice?.isOnline ? (
@@ -53,7 +53,7 @@ export default function PondSelector({
           {devices.map((device) => (
             <SelectItem
               key={device.id}
-              value={device.name}
+              value={device.deviceId}
               className="py-3"
             >
               <div className="flex items-center gap-3 w-full">

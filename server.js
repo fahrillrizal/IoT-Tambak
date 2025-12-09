@@ -58,15 +58,44 @@ app.prepare().then(() => {
     );
 
     mqttClient.on("connect", () => {
-      console.log("✓ Connected to MQTT broker");
+      console.log("✓ Connected to MQTT broker (ThingsBoard)");
+
+      // Subscribe ke topic telemetry ThingsBoard
+      // Format: v1/devices/me/telemetry (untuk device sendiri)
+      mqttClient.subscribe("v1/devices/+/telemetry", (err) => {
+        if (!err) {
+          console.log("✓ Subscribed to device telemetry topics");
+        } else {
+          console.error("✗ Failed to subscribe:", err);
+        }
+      });
     });
 
     mqttClient.on("message", (topic, message) => {
       try {
         const data = JSON.parse(message.toString());
+        console.log("📥 MQTT Message:", topic, data);
 
+        // Emit ke Socket.io (untuk local dev)
         if (data.deviceId) {
-          io.to(`pond:${data.deviceId}`).emit("pond:telemetry", data);
+          io.to(`pond:${data.deviceId}`).emit("telemetry:update", data);
+        }
+        io.emit("telemetry:update", data);
+
+        // Trigger Pusher (untuk production)
+        // Kirim ke webhook API untuk trigger Pusher
+        if (process.env.PUSHER_WEBHOOK_SECRET) {
+          const deviceIdFromTopic = topic.split("/")[2]; // Extract dari v1/devices/{id}/telemetry
+          
+          fetch(`${process.env.NEXTAUTH_URL}/api/pusher/telemetry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              deviceId: deviceIdFromTopic,
+              data,
+              secret: process.env.PUSHER_WEBHOOK_SECRET,
+            }),
+          }).catch((err) => console.error("Pusher webhook error:", err));
         }
       } catch (err) {
         console.error("MQTT message parse error:", err);

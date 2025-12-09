@@ -5,11 +5,13 @@ import type {
   SensorData,
   FeedingSchedule,
   SensorDevice,
+  ChartData,
 } from "@/types/dashboard";
 import {
   DEFAULT_SENSOR_DATA,
   DEFAULT_FEEDING_SCHEDULES,
   SENSOR_DEVICES,
+  TREND_CHART_DATA,
 } from "@/constants/dashboard";
 
 export function useAuth() {
@@ -67,10 +69,27 @@ export function useSensorData(deviceId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchSensorData = useCallback(async (id?: string) => {
+    if (!id) return;
+
     setIsLoading(true);
     setError(null);
+
     try {
-      setSensorData(DEFAULT_SENSOR_DATA);
+      const response = await fetch(`/api/telemetry?deviceId=${id}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setSensorData({
+          temperature: result.data.temperature || 0,
+          ph: result.data.ph || 0,
+          dissolvedOxygen: result.data.dissolvedOxygen || 0,
+          salinity: result.data.salinity || 0,
+          turbidity: result.data.turbidity || 0,
+          status: result.data.status || "Normal",
+        });
+      } else {
+        setError(result.error);
+      }
     } catch (err) {
       setError("Failed to fetch sensor data");
       console.error(err);
@@ -81,7 +100,32 @@ export function useSensorData(deviceId?: string) {
 
   useEffect(() => {
     if (deviceId) {
+      // Initial fetch
       fetchSensorData(deviceId);
+      
+      // Polling fallback (setiap 10 detik)
+      const interval = setInterval(() => fetchSensorData(deviceId), 10000);
+      
+      // Pusher realtime (opsional, akan ditambahkan jika ada PUSHER_KEY)
+      if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_PUSHER_KEY) {
+        import('@/lib/pusher-client').then(({ subscribeToDeviceTelemetry }) => {
+          const unsubscribe = subscribeToDeviceTelemetry(deviceId, (data) => {
+            console.log('📡 Realtime update from Pusher:', data);
+            setSensorData({
+              temperature: data.temperature || 0,
+              ph: data.ph || 0,
+              dissolvedOxygen: data.dissolvedOxygen || 0,
+              salinity: data.salinity || 0,
+              turbidity: data.turbidity || 0,
+              status: data.status || "Normal",
+            });
+          });
+          
+          return () => unsubscribe();
+        });
+      }
+      
+      return () => clearInterval(interval);
     }
   }, [deviceId, fetchSensorData]);
 
@@ -124,13 +168,36 @@ export function useFeedingSchedule() {
 }
 
 export function useDeviceSelection(initialDevice?: string) {
+  const [devices, setDevices] = useState<SensorDevice[]>(SENSOR_DEVICES);
   const [selectedDevice, setSelectedDevice] = useState(
-    initialDevice || SENSOR_DEVICES[0].name
+    initialDevice || devices[0]?.deviceId || ""
   );
-  const [devices] = useState<SensorDevice[]>(SENSOR_DEVICES);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const response = await fetch('/api/devices');
+        const result = await response.json();
+        
+        if (result.success && result.data.length > 0) {
+          setDevices(result.data);
+          if (!selectedDevice) {
+            setSelectedDevice(result.data[0].deviceId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch devices:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDevices();
+  }, []);
 
   const currentDevice =
-    devices.find((d) => d.name === selectedDevice) || devices[0];
+    devices.find((d) => d.deviceId === selectedDevice) || devices[0];
   const totalNotifications = devices.reduce(
     (sum, d) => sum + d.notifications,
     0
@@ -142,6 +209,7 @@ export function useDeviceSelection(initialDevice?: string) {
     devices,
     currentDevice,
     totalNotifications,
+    isLoading,
   };
 }
 
@@ -157,4 +225,44 @@ export function useNotifications() {
   }, []);
 
   return { notifications, addNotification, clearNotifications };
+}
+
+export function useWeeklyChart(deviceId?: string) {
+  const [chartData, setChartData] = useState<ChartData>(TREND_CHART_DATA);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchWeeklyData = useCallback(async (id?: string) => {
+    if (!id) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/telemetry/weekly?deviceId=${id}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setChartData(result.data);
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('Failed to fetch weekly chart data');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (deviceId) {
+      fetchWeeklyData(deviceId);
+      // Refresh setiap 5 menit
+      const interval = setInterval(() => fetchWeeklyData(deviceId), 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [deviceId, fetchWeeklyData]);
+
+  return { chartData, isLoading, error, refresh: fetchWeeklyData };
 }

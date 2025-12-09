@@ -18,10 +18,13 @@ export interface FeedingSchedule {
 }
 
 export interface SensorDevice {
-  id: number;
+  id: number | string;
   name: string;
+  deviceId: string;
   isOnline: boolean;
   notifications: number;
+  label?: string;
+  type?: string;
 }
 
 export interface ChartDataset {

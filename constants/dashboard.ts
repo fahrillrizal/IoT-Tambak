@@ -6,11 +6,10 @@ import type {
   ActivityLog,
 } from "@/types/dashboard";
 
+// Device ID akan diambil dari ThingsBoard API
+// Ini hanya default fallback jika API gagal
 export const SENSOR_DEVICES: SensorDevice[] = [
-  { id: 1, name: "Tambak A - Sensor 1", isOnline: true, notifications: 2 },
-  { id: 2, name: "Tambak A - Sensor 2", isOnline: true, notifications: 0 },
-  { id: 3, name: "Tambak B - Sensor 1", isOnline: false, notifications: 1 },
-  { id: 4, name: "Tambak B - Sensor 2", isOnline: true, notifications: 1 },
+  { id: 1, name: "Sensor-1", deviceId: "", isOnline: true, notifications: 0 },
 ];
 
 export const DEFAULT_SENSOR_DATA: SensorData = {
