@@ -5,12 +5,10 @@ export async function saveDailySummaryForYesterday() {
   try {
     console.log('🕐 Starting daily summary save job...');
 
-    // Hitung kemarin
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-    // Ambil semua devices yang aktif
     const devices = await prisma.device.findMany({
       where: {
         isActive: true,
@@ -35,7 +33,6 @@ export async function saveDailySummaryForYesterday() {
 
         const keys = ['temperature', 'ph', 'dissolvedOxygen', 'salinity', 'turbidity'];
 
-        // Ambil data dari ThingsBoard
         const history = await thingsboardService.getTelemetryHistory(
           device.thingsboardDeviceId!,
           keys,
@@ -44,7 +41,6 @@ export async function saveDailySummaryForYesterday() {
           1000
         );
 
-        // Hitung stats
         const stats: Record<string, { values: number[] }> = {};
         for (const key of keys) {
           stats[key] = { values: [] };
@@ -74,7 +70,6 @@ export async function saveDailySummaryForYesterday() {
         const salStats = calculateStats(stats.salinity.values);
         const turbStats = calculateStats(stats.turbidity.values);
 
-        // Save ke DB
         await prisma.dailySummary.upsert({
           where: {
             pondId_date: {
