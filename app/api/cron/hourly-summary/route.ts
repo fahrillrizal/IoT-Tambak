@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveHourlySummaryForLastHour } from '@/lib/hourly-summary-scheduler';
+import { saveDailySummaryForYesterday } from '@/lib/daily-summary-scheduler';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -11,6 +12,11 @@ export async function POST(request: NextRequest) {
     }
 
     await saveHourlySummaryForLastHour();
+
+    const now = new Date();
+    if (now.getUTCHours() === 0) {
+      await saveDailySummaryForYesterday();
+    }
 
     return NextResponse.json({
       success: true,
