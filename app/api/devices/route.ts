@@ -13,11 +13,13 @@ export async function GET(request: NextRequest) {
     // Ambil semua devices dari ThingsBoard
     const response = await thingsboardService.getTenantDevices(100, 0);
     
-    if (!response || !response.data) {
-      return NextResponse.json(
-        { error: 'No devices found' },
-        { status: 404 }
-      );
+    if (!response || !response.data || response.data.length === 0) {
+      // Return empty array jika tidak ada devices
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0,
+      });
     }
 
     // Transform devices untuk UI
@@ -66,9 +68,17 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Devices fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch devices' },
-      { status: 500 }
-    );
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
+    // Return empty devices jika error
+    return NextResponse.json({
+      success: true,
+      data: [],
+      total: 0,
+      error: error instanceof Error ? error.message : 'Failed to fetch devices',
+    });
   }
 }

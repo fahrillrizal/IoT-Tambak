@@ -22,6 +22,20 @@ export default function PondSelector({
   onDeviceChange,
 }: PondSelectorProps) {
   const currentDevice = devices.find((d) => d.deviceId === selectedDevice);
+  
+  // Filter devices dengan deviceId yang valid (tidak empty)
+  const validDevices = devices.filter((d) => d.deviceId && d.deviceId.trim() !== "");
+  
+  // Jika tidak ada devices atau selectedDevice kosong, return loading state
+  if (validDevices.length === 0 || !selectedDevice) {
+    return (
+      <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="w-full sm:w-[300px] bg-white border border-gray-200 rounded-md px-3 py-2">
+          <span className="text-gray-400">Loading devices...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -50,7 +64,7 @@ export default function PondSelector({
           </div>
         </SelectTrigger>
         <SelectContent className="w-full sm:w-[300px]">
-          {devices.map((device) => (
+          {validDevices.map((device) => (
             <SelectItem
               key={device.id}
               value={device.deviceId}
