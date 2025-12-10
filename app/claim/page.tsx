@@ -131,6 +131,11 @@ function ClaimDevicePageInner() {
       setDevice(data.data);
       setSuccess("Device berhasil diassign ke kolam yang dipilih");
       setSelectedPondId(data.data.pondId?.toString() || selectedPondId);
+      
+      // Redirect to devices page after 2 seconds
+      setTimeout(() => {
+        router.push("/devices");
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
     } finally {

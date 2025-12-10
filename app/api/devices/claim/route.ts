@@ -144,24 +144,21 @@ export async function PUT(request: NextRequest) {
     const hasAccess = device.userDevices.some((ud) => ud.userId === user.id);
     const isAuthorized = isOwner || hasAccess;
 
-    const pond = await prisma.pond.findFirst({
-      where: { id: parseInt(pondId, 10), userId: user.id, isActive: true },
-    });
+    let pond;
 
-    if (!pond) {
-      return NextResponse.json(
-        { error: "Pond not found or access denied" },
-        { status: 404 }
-      );
-    }
-
-    if (!hasAccess) {
-      await prisma.userDevice.create({
-        data: {
-          userId: user.id,
-          deviceId: device.id,
-        },
+    if (parseInt(pondId, 10) === device.pondId) {
+      pond = device.pond;
+    } else {
+      pond = await prisma.pond.findFirst({
+        where: { id: parseInt(pondId, 10), userId: user.id, isActive: true },
       });
+
+      if (!pond) {
+        return NextResponse.json(
+          { error: "Pond not found or access denied" },
+          { status: 404 }
+        );
+      }
     }
 
     if (device.pondId !== pond.id) {
