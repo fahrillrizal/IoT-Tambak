@@ -29,14 +29,21 @@ export async function saveDailySummaryForYesterday() {
   try {
     console.log('🕐 Starting daily summary save job...');
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    // Use UTC dates
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    yesterday.setUTCHours(0, 0, 0, 0);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayDate = new Date(yesterdayStr); // Keep as Date object for Prisma
 
     const startOfDay = new Date(yesterday);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(yesterday);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    console.log(`📊 Daily summary for date: ${yesterdayStr}`);
+    console.log(`   Time range (UTC): ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
 
     const devices = await prisma.device.findMany({
       where: { isActive: true, thingsboardDeviceId: { not: null } },
@@ -53,7 +60,10 @@ export async function saveDailySummaryForYesterday() {
             pondId: device.pondId,
             timestamp: { gte: startOfDay, lte: endOfDay },
           },
+          orderBy: { timestamp: 'asc' },
         });
+
+        console.log(`   📈 Found ${hourly.length} hourly records for pond ${device.pondId}`);
 
         let tempStats: HourlyAgg;
         let phStats: HourlyAgg;
@@ -105,6 +115,7 @@ export async function saveDailySummaryForYesterday() {
           dataPoints = tempStats.count;
         } else {
           // 2) Fallback: langsung hitung dari ThingsBoard
+          console.log(`   🔄 No hourly summaries, fetching from ThingsBoard for device ${device.thingsboardDeviceId}`);
           const keys = ['temperature', 'ph', 'dissolvedOxygen', 'salinity', 'turbidity'];
           const history = await thingsboardService.getTelemetryHistory(
             device.thingsboardDeviceId!,
@@ -146,12 +157,12 @@ export async function saveDailySummaryForYesterday() {
           where: {
             pondId_date: {
               pondId: device.pondId,
-              date: yesterdayStr,
+              date: yesterdayDate,
             },
           },
           create: {
             pondId: device.pondId,
-            date: yesterdayStr,
+            date: yesterdayDate,
             avgTemperature: tempStats.avg,
             minTemperature: tempStats.min,
             maxTemperature: tempStats.max,
@@ -189,7 +200,7 @@ export async function saveDailySummaryForYesterday() {
           },
         });
 
-        console.log(`✅ Saved daily summary for pond ${device.pondId} (${device.thingsboardDeviceId})`);
+        console.log(`✅ Saved daily summary for pond ${device.pondId} (${device.thingsboardDeviceId}), dataPoints: ${dataPoints}`);
       } catch (error) {
         console.error(`❌ Error processing device ${device.id}:`, error);
       }
