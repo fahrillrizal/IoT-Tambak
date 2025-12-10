@@ -24,7 +24,7 @@ export function QRCodeDisplay({
 
   const claimUrl = useMemo(() => {
     if (!deviceId) return "";
-    if (typeof window === "undefined") return `https://example.com/claim?deviceId=${encodeURIComponent(deviceId)}`;
+    if (typeof window === "undefined") return `https://tascaid.space/claim?deviceId=${encodeURIComponent(deviceId)}`;
     return `${window.location.origin}/claim?deviceId=${encodeURIComponent(deviceId)}`;
   }, [deviceId]);
 

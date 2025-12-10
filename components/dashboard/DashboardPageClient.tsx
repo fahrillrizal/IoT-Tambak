@@ -91,8 +91,8 @@ export default function DashboardPageClient({ defaultCollapsed }: DashboardPageC
         <div className="mb-20 lg:mb-0">
           <div className="bg-white border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-600">
             <p className="text-lg font-semibold text-gray-800 mb-2">Belum ada perangkat</p>
-            <p className="text-sm mb-2">Tambahkan perangkat terlebih dahulu atau scan QR perangkat Anda.</p>
-            <p className="text-xs text-gray-500">Tombol "Scan QR Device" ada di bagian kanan atas.</p>
+            <p className="text-sm mb-2">Tambahkan perangkat terlebih dahulu atau Scan QR perangkat Anda.</p>
+            <p className="text-xs text-gray-500">Tombol "Add Device" ada di bagian kanan atas.</p>
           </div>
         </div>
       )}

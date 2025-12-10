@@ -201,6 +201,20 @@ export async function saveDailySummaryForYesterday() {
         });
 
         console.log(`✅ Saved daily summary for pond ${device.pondId} (${device.thingsboardDeviceId}), dataPoints: ${dataPoints}`);
+
+        try {
+          const deletedCount = await prisma.hourlySummary.deleteMany({
+            where: {
+              pondId: device.pondId,
+              timestamp: { gte: startOfDay, lte: endOfDay },
+            },
+          });
+          if (deletedCount.count > 0) {
+            console.log(`🗑️  Deleted ${deletedCount.count} hourly records for pond ${device.pondId}`);
+          }
+        } catch (deleteError) {
+          console.warn(`⚠️  Failed to cleanup hourly summaries for pond ${device.pondId}:`, deleteError);
+        }
       } catch (error) {
         console.error(`❌ Error processing device ${device.id}:`, error);
       }
