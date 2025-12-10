@@ -21,18 +21,42 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { deviceName, pondId, deviceType = "SENSOR" } = body;
 
+    // Validate required fields
     if (!deviceName || !pondId) {
+      console.warn("Missing required fields:", { deviceName, pondId });
       return NextResponse.json(
         { error: "Device name and pond are required" },
         { status: 400 }
       );
     }
 
+    // Validate deviceName is a string
+    if (typeof deviceName !== "string" || !deviceName.trim()) {
+      return NextResponse.json(
+        { error: "Device name must be a non-empty string" },
+        { status: 400 }
+      );
+    }
+
+    // Convert pondId to integer
+    const parsedPondId = typeof pondId === "string" ? parseInt(pondId, 10) : pondId;
+    if (isNaN(parsedPondId)) {
+      console.warn("Invalid pondId:", { pondId, parsedPondId });
+      return NextResponse.json(
+        { error: "Pond ID must be a valid number" },
+        { status: 400 }
+      );
+    }
+
     const pond = await prisma.pond.findFirst({
-      where: { id: parseInt(pondId), userId: user.id },
+      where: { id: parsedPondId, userId: user.id },
     });
 
     if (!pond) {
+      console.warn("Pond not found or access denied:", {
+        pondId: parsedPondId,
+        userId: user.id,
+      });
       return NextResponse.json(
         { error: "Pond not found or access denied" },
         { status: 404 }
@@ -96,8 +120,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Case 2: Device doesn't exist - create new device
-    const existingTbDevice =
-      await thingsboardService.findDeviceByName(deviceName);
+    console.log("Creating new device:", { deviceName, deviceType, pond: pond.name });
+    
+    let existingTbDevice;
+    try {
+      existingTbDevice = await thingsboardService.findDeviceByName(deviceName);
+    } catch (error) {
+      console.error("Error checking existing device in ThingsBoard:", error);
+      // Don't fail if we can't check, proceed with creation
+    }
+    
     if (existingTbDevice) {
       return NextResponse.json(
         {
@@ -109,12 +141,13 @@ export async function POST(request: NextRequest) {
 
     let tbDevice;
     try {
+      console.log("Attempting ThingsBoard device creation...");
       tbDevice = await thingsboardService.createDevice(
         deviceName,
         deviceType.toLowerCase(),
         `${deviceName} - ${pond.name}`
       );
-      console.log("ThingsBoard device created:", tbDevice);
+      console.log("ThingsBoard device created successfully:", tbDevice);
     } catch (error) {
       console.error("ThingsBoard device creation error:", error);
       return NextResponse.json(

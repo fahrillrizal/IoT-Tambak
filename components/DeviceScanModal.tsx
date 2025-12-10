@@ -305,6 +305,12 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
     setError(null);
 
     try {
+      console.log("Registering device:", {
+        deviceName: deviceName.trim(),
+        pondId: selectedPondId,
+        deviceType,
+      });
+
       const response = await fetch("/api/devices/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -316,17 +322,31 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
       });
 
       const data = await response.json();
+      console.log("Device registration response:", {
+        status: response.status,
+        ok: response.ok,
+        data,
+      });
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to register device");
+        const errorMsg = data.error || "Failed to register device";
+        console.error("Device registration error:", {
+          status: response.status,
+          error: errorMsg,
+          details: data,
+        });
+        throw new Error(errorMsg);
       }
 
       setScannedDevice(data.data);
       setStep("success");
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Failed to register device"
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to register device";
+      console.error("Device registration exception:", error, {
+        message: errorMessage,
+      });
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

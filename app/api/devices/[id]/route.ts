@@ -24,9 +24,22 @@ export async function GET(
     const device = await prisma.device.findFirst({
       where: {
         id: parseInt(id),
-        pond: {
-          userId: user.id,
-        },
+        OR: [
+          // User owns the pond
+          {
+            pond: {
+              userId: user.id,
+            },
+          },
+          // Device is shared with user
+          {
+            userDevices: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        ],
       },
       include: {
         pond: {
@@ -90,9 +103,26 @@ export async function DELETE(
     const device = await prisma.device.findFirst({
       where: {
         id: parseInt(id),
-        pond: {
-          userId: user.id,
-        },
+        OR: [
+          // User owns the pond
+          {
+            pond: {
+              userId: user.id,
+            },
+          },
+          // Device is shared with user
+          {
+            userDevices: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        ],
+      },
+      include: {
+        pond: true,
+        userDevices: true,
       },
     });
 
@@ -103,22 +133,51 @@ export async function DELETE(
       );
     }
 
-    const deletedDevice = await prisma.device.update({
-      where: { id: parseInt(id) },
-      data: {
-        isActive: false,
-        updatedAt: new Date(),
-      },
-    });
+    // Check if user is pond owner or shared user
+    const isPondOwner = device.pond.userId === user.id;
+    const isSharedUser = device.userDevices.some((ud) => ud.userId === user.id);
 
-    return NextResponse.json({
-      success: true,
-      message: `Device "${device.name}" has been deleted`,
-      data: {
-        id: deletedDevice.id,
-        name: deletedDevice.name,
-      },
-    });
+    if (isPondOwner) {
+      // Owner: delete device completely
+      const deletedDevice = await prisma.device.update({
+        where: { id: parseInt(id) },
+        data: {
+          isActive: false,
+          updatedAt: new Date(),
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Device "${device.name}" has been deleted`,
+        data: {
+          id: deletedDevice.id,
+          name: deletedDevice.name,
+        },
+      });
+    } else if (isSharedUser) {
+      // Shared user: remove only their access
+      await prisma.userDevice.deleteMany({
+        where: {
+          userId: user.id,
+          deviceId: parseInt(id),
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Device access removed`,
+        data: {
+          id: device.id,
+          name: device.name,
+        },
+      });
+    } else {
+      return NextResponse.json(
+        { error: "Device not found or access denied" },
+        { status: 404 }
+      );
+    }
   } catch (error) {
     console.error("Device delete error:", error);
     return NextResponse.json(

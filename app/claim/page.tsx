@@ -26,6 +26,7 @@ interface DeviceInfo {
   thingsboardDeviceId: string;
   pondId: number;
   pondName: string;
+  message?: string;
 }
 
 function ClaimDevicePageInner() {
@@ -40,6 +41,7 @@ function ClaimDevicePageInner() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isExistingDevice, setIsExistingDevice] = useState(false);
 
   const deviceIdLabel = useMemo(() => {
     if (!deviceIdParam) return "(tidak ada)";
@@ -67,6 +69,11 @@ function ClaimDevicePageInner() {
         const pondsJson = await pondsRes.json();
 
         if (!deviceRes.ok) {
+          if (deviceRes.status === 404) {
+            throw new Error(
+              "Device tidak ditemukan. Pastikan Anda sudah scan/menambahkan device terlebih dahulu melalui menu Tambah Device."
+            );
+          }
           throw new Error(deviceJson.error || "Device tidak ditemukan");
         }
 
@@ -75,6 +82,7 @@ function ClaimDevicePageInner() {
         }
 
         setDevice(deviceJson.data);
+        setIsExistingDevice(deviceJson.isExisting === true);
         setPonds(pondsJson.data || []);
         setSelectedPondId(
           deviceJson.data?.pondId?.toString() || pondsJson.data?.[0]?.id?.toString() || ""
@@ -146,9 +154,24 @@ function ClaimDevicePageInner() {
           )}
 
           {!loading && error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded">
-              <AlertCircle className="h-4 w-4" />
-              {error}
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 p-4 rounded">
+                <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold mb-1">Error: {error}</p>
+                  <p className="text-xs text-red-500 mt-2">
+                    Solusi: Kembali ke halaman Devices dan pilih "Tambah Device" untuk scan/register device terlebih dahulu.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  className="w-full"
+                  onClick={() => router.push("/devices")}
+                >
+                  Kembali ke Devices
+                </Button>
+              </div>
             </div>
           )}
 
@@ -160,6 +183,9 @@ function ClaimDevicePageInner() {
                 <p className="text-blue-800 text-xs mt-1 break-all">
                   Device ID: <code className="font-mono text-[11px]">{deviceIdLabel}</code>
                 </p>
+                {device.message && (
+                  <p className="text-blue-800 text-xs mt-2 italic">{device.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -197,20 +223,22 @@ function ClaimDevicePageInner() {
                 >
                   Kembali ke Devices
                 </Button>
-                <Button
-                  className="sm:w-auto"
-                  onClick={handleAssign}
-                  disabled={!selectedPondId || saving}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Menyimpan...
-                    </>
-                  ) : (
-                    "Assign ke Kolam"
-                  )}
-                </Button>
+              <Button
+                className="sm:w-auto"
+                onClick={handleAssign}
+                disabled={!selectedPondId || saving}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : isExistingDevice ? (
+                  "Akses Device"
+                ) : (
+                  "Assign ke Kolam"
+                )}
+              </Button>
               </div>
             </>
           )}

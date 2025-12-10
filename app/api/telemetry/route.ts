@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user has access to this device
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -33,13 +32,12 @@ export async function GET(request: NextRequest) {
       where: {
         thingsboardDeviceId: deviceId,
         OR: [
-          // User owns the pond
           {
             pond: {
               userId: user.id,
             },
           },
-          // Device is shared with user
+
           {
             userDevices: {
               some: {

@@ -31,9 +31,20 @@ export async function GET(request: NextRequest) {
     const device = await prisma.device.findFirst({
       where: {
         thingsboardDeviceId: deviceId,
-        pond: {
-          userId: user.id,
-        },
+        OR: [
+          {
+            pond: {
+              userId: user.id,
+            },
+          },
+          {
+            userDevices: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        ],
       },
     });
 
