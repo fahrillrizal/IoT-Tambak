@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { thingsboardService } from "@/lib/thingsboard";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,14 +10,8 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
+    const pondIdParam = searchParams.get("pondId");
     const deviceId = searchParams.get("deviceId");
-
-    if (!deviceId) {
-      return NextResponse.json(
-        { error: "Device ID is required" },
-        { status: 400 }
-      );
-    }
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
@@ -28,32 +21,55 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const device = await prisma.device.findFirst({
-      where: {
-        thingsboardDeviceId: deviceId,
-        OR: [
-          {
-            pond: {
-              userId: user.id,
-            },
-          },
+    let pondId: number | null = null;
 
-          {
-            userDevices: {
-              some: {
-                userId: user.id,
-              },
-            },
+    if (pondIdParam) {
+      const parsedPondId = parseInt(pondIdParam);
+
+      if (!isNaN(parsedPondId)) {
+        const pond = await prisma.pond.findFirst({
+          where: {
+            id: parsedPondId,
+            userId: user.id,
           },
-        ],
-      },
-      select: { pondId: true },
-    });
+        });
+
+        if (pond) {
+          pondId = pond.id;
+        }
+      } else {
+        const device = await prisma.device.findFirst({
+          where: {
+            thingsboardDeviceId: pondIdParam,
+            OR: [
+              { pond: { userId: user.id } },
+              { userDevices: { some: { userId: user.id } } },
+            ],
+          },
+          select: { pondId: true },
+        });
+
+        pondId = device?.pondId || null;
+      }
+    } else if (deviceId) {
+      const device = await prisma.device.findFirst({
+        where: {
+          thingsboardDeviceId: deviceId,
+          OR: [
+            { pond: { userId: user.id } },
+            { userDevices: { some: { userId: user.id } } },
+          ],
+        },
+        select: { pondId: true },
+      });
+
+      pondId = device?.pondId || null;
+    }
 
     const labels: string[] = [];
     const dayNames = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 
-    if (!device) {
+    if (!pondId) {
       for (let i = 0; i < 7; i++) labels.push(dayNames[i]);
       return NextResponse.json({
         success: true,
@@ -66,26 +82,39 @@ export async function GET(request: NextRequest) {
             { label: "Salinitas (ppt)", data: Array(7).fill(null) },
             { label: "Turbidity (NTU)", data: Array(7).fill(null) },
           ],
-          message: "Device tidak ditemukan",
+          message: "Data tidak ditemukan",
         },
       });
     }
 
     const today = new Date();
     const currentDay = today.getDay();
-
     const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1;
     const mondayThisWeek = new Date(today);
     mondayThisWeek.setDate(today.getDate() - daysFromMonday);
     mondayThisWeek.setHours(0, 0, 0, 0);
 
-    const keys = [
-      "temperature",
-      "ph",
-      "dissolvedOxygen",
-      "salinity",
-      "turbidity",
-    ];
+    const sundayThisWeek = new Date(mondayThisWeek);
+    sundayThisWeek.setDate(mondayThisWeek.getDate() + 6);
+    sundayThisWeek.setHours(23, 59, 59, 999);
+
+    const summaries = await prisma.dailySummary.findMany({
+      where: {
+        pondId: pondId,
+        date: {
+          gte: mondayThisWeek,
+          lte: sundayThisWeek,
+        },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    const summaryMap = new Map<string, (typeof summaries)[0]>();
+    for (const s of summaries) {
+      const dateKey = s.date.toISOString().split("T")[0];
+      summaryMap.set(dateKey, s);
+    }
+
     const chartData: Record<string, (number | null)[]> = {
       temperature: [],
       ph: [],
@@ -98,61 +127,23 @@ export async function GET(request: NextRequest) {
       const currentDate = new Date(mondayThisWeek);
       currentDate.setDate(mondayThisWeek.getDate() + i);
       const dayKey = currentDate.toISOString().split("T")[0];
-      const isToday = dayKey === today.toISOString().split("T")[0];
 
       labels.push(dayNames[i]);
 
-      if (isToday) {
-        try {
-          const endOfDay = new Date(today);
-          endOfDay.setHours(23, 59, 59, 999);
+      const summary = summaryMap.get(dayKey);
 
-          const history = await thingsboardService.getTelemetryHistory(
-            deviceId,
-            keys,
-            currentDate.getTime(),
-            endOfDay.getTime(),
-            1000
-          );
-
-          for (const key of keys) {
-            const values = history[key];
-            if (Array.isArray(values) && values.length > 0) {
-              const avg =
-                values.reduce((sum, item) => sum + parseFloat(item.value), 0) /
-                values.length;
-              chartData[key].push(parseFloat(avg.toFixed(2)));
-            } else {
-              chartData[key].push(null);
-            }
-          }
-        } catch (err) {
-          console.error("ThingsBoard fetch failed for today:", err);
-          keys.forEach((key) => chartData[key].push(null));
-        }
+      if (summary) {
+        chartData.temperature.push(Number(summary.avgTemperature));
+        chartData.ph.push(Number(summary.avgPh));
+        chartData.dissolvedOxygen.push(Number(summary.avgDissolvedOxygen));
+        chartData.salinity.push(Number(summary.avgSalinity));
+        chartData.turbidity.push(Number(summary.avgTurbidity));
       } else {
-        const summary = await prisma.dailySummary.findUnique({
-          where: {
-            pondId_date: {
-              pondId: device.pondId,
-              date: new Date(dayKey),
-            },
-          },
-        });
-
-        if (summary) {
-          chartData.temperature.push(summary.avgTemperature as any);
-          chartData.ph.push(summary.avgPh as any);
-          chartData.dissolvedOxygen.push(summary.avgDissolvedOxygen as any);
-          chartData.salinity.push(summary.avgSalinity as any);
-          chartData.turbidity.push(summary.avgTurbidity as any);
-        } else {
-          chartData.temperature.push(null);
-          chartData.ph.push(null);
-          chartData.dissolvedOxygen.push(null);
-          chartData.salinity.push(null);
-          chartData.turbidity.push(null);
-        }
+        chartData.temperature.push(null);
+        chartData.ph.push(null);
+        chartData.dissolvedOxygen.push(null);
+        chartData.salinity.push(null);
+        chartData.turbidity.push(null);
       }
     }
 
@@ -168,7 +159,7 @@ export async function GET(request: NextRequest) {
             backgroundColor: "transparent",
             tension: 0.4,
             fill: false,
-            spanGaps: false,
+            spanGaps: true,
           },
           {
             label: "pH",
@@ -177,7 +168,7 @@ export async function GET(request: NextRequest) {
             backgroundColor: "transparent",
             tension: 0.4,
             fill: false,
-            spanGaps: false,
+            spanGaps: true,
           },
           {
             label: "Oksigen (mg/L)",
@@ -186,7 +177,7 @@ export async function GET(request: NextRequest) {
             backgroundColor: "transparent",
             tension: 0.4,
             fill: false,
-            spanGaps: false,
+            spanGaps: true,
           },
           {
             label: "Salinitas (ppt)",
@@ -195,7 +186,7 @@ export async function GET(request: NextRequest) {
             backgroundColor: "transparent",
             tension: 0.4,
             fill: false,
-            spanGaps: false,
+            spanGaps: true,
           },
           {
             label: "Turbidity (NTU)",
@@ -204,7 +195,7 @@ export async function GET(request: NextRequest) {
             backgroundColor: "transparent",
             tension: 0.4,
             fill: false,
-            spanGaps: false,
+            spanGaps: true,
           },
         ],
       },

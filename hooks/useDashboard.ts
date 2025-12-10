@@ -99,17 +99,64 @@ export function useSensorData(deviceId?: string) {
   }, []);
 
   useEffect(() => {
-    if (deviceId) {
-      // Initial fetch
-      fetchSensorData(deviceId);
-      
-      // Polling fallback (setiap 10 detik)
-      const interval = setInterval(() => fetchSensorData(deviceId), 10000);
-      
-      // Pusher realtime (opsional, akan ditambahkan jika ada PUSHER_KEY)
-      if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_PUSHER_KEY) {
+    if (!deviceId) return;
+
+    // Initial fetch
+    fetchSensorData(deviceId);
+
+    let unsubscribe: (() => void) | undefined;
+
+    // Helper function to calculate status based on sensor values
+    const calculateStatus = (data: any): 'Normal' | 'Warning' | 'Critical' => {
+      const t = data.temperature;
+      const p = data.ph;
+      const d = data.dissolvedOxygen;
+      const s = data.salinity;
+
+      // Critical conditions
+      if (
+        (t !== undefined && t !== null && (t < 26 || t > 32)) ||
+        (p !== undefined && p !== null && (p < 7.5 || p > 8.5)) ||
+        (d !== undefined && d !== null && (d < 4 || d > 8))
+      ) {
+        return 'Critical';
+      }
+
+      // Warning conditions
+      if (
+        (s !== undefined && s !== null && (s < 15 || s > 30)) ||
+        (t !== undefined && t !== null && (t < 27 || t > 31)) ||
+        (p !== undefined && p !== null && (p < 7.8 || p > 8.2))
+      ) {
+        return 'Warning';
+      }
+
+      return 'Normal';
+    };
+
+    // Check if we're in browser
+    if (typeof window !== 'undefined') {
+      const isDev = process.env.NODE_ENV === 'development';
+
+      if (isDev) {
+        // Development: Use WebSocket (Socket.IO)
+        import('@/lib/socket-client').then(({ subscribeToDeviceWebSocket }) => {
+          unsubscribe = subscribeToDeviceWebSocket(deviceId, (data) => {
+            console.log('📡 Realtime update from WebSocket:', data);
+            setSensorData({
+              temperature: data.temperature ?? null,
+              ph: data.ph ?? null,
+              dissolvedOxygen: data.dissolvedOxygen ?? null,
+              salinity: data.salinity ?? null,
+              turbidity: data.turbidity ?? null,
+              status: calculateStatus(data),
+            });
+          });
+        });
+      } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
+        // Production: Use Pusher
         import('@/lib/pusher-client').then(({ subscribeToDeviceTelemetry }) => {
-          const unsubscribe = subscribeToDeviceTelemetry(deviceId, (data) => {
+          unsubscribe = subscribeToDeviceTelemetry(deviceId, (data) => {
             console.log('📡 Realtime update from Pusher:', data);
             setSensorData({
               temperature: data.temperature ?? null,
@@ -117,16 +164,18 @@ export function useSensorData(deviceId?: string) {
               dissolvedOxygen: data.dissolvedOxygen ?? null,
               salinity: data.salinity ?? null,
               turbidity: data.turbidity ?? null,
-              status: data.status ?? "Offline",
+              status: calculateStatus(data),
             });
           });
-          
-          return () => unsubscribe();
         });
       }
-      
-      return () => clearInterval(interval);
     }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [deviceId, fetchSensorData]);
 
   return {
@@ -244,12 +293,16 @@ export function useNotifications() {
   return { notifications, addNotification, clearNotifications };
 }
 
-export function useWeeklyChart(deviceId?: string) {
+// Hook untuk Weekly Chart - data historical dari daily summaries
+// Update hanya saat daily summary selesai (dari cron job)
+// Param bisa berupa deviceId (string UUID) atau pondId (number)
+export function useWeeklyChart(deviceIdOrPondId?: string | number) {
   const [chartData, setChartData] = useState<ChartData>({ labels: [], datasets: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<number>(0);
 
-  const fetchWeeklyData = useCallback(async (id?: string) => {
+  const fetchWeeklyData = useCallback(async (id?: string | number) => {
     if (!id) {
       setChartData({ labels: [], datasets: [] });
       return;
@@ -259,11 +312,13 @@ export function useWeeklyChart(deviceId?: string) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/telemetry/weekly?deviceId=${id}`);
+      // API accepts both pondId (number) and deviceId (UUID string)
+      const response = await fetch(`/api/telemetry/weekly?pondId=${id}`);
       const result = await response.json();
 
       if (result.success) {
         setChartData(result.data);
+        setLastUpdate(Date.now());
       } else {
         setError(result.error);
       }
@@ -276,13 +331,195 @@ export function useWeeklyChart(deviceId?: string) {
   }, []);
 
   useEffect(() => {
-    if (deviceId) {
-      fetchWeeklyData(deviceId);
-      // Refresh setiap 5 menit
-      const interval = setInterval(() => fetchWeeklyData(deviceId), 5 * 60 * 1000);
-      return () => clearInterval(interval);
-    }
-  }, [deviceId, fetchWeeklyData]);
+    if (!deviceIdOrPondId) return;
 
-  return { chartData, isLoading, error, refresh: fetchWeeklyData };
+    // Initial fetch
+    fetchWeeklyData(deviceIdOrPondId);
+
+    let unsubscribe: (() => void) | undefined;
+
+    // Subscribe to daily summary updates - refresh weekly chart when daily cron completes
+    if (typeof window !== 'undefined') {
+      const isDev = process.env.NODE_ENV === 'development';
+
+      const handleSummaryUpdate = (data: { type: string }) => {
+        if (data.type === 'daily') {
+          console.log('📊 Refreshing weekly chart due to daily summary update');
+          fetchWeeklyData(deviceIdOrPondId);
+        }
+      };
+
+      if (isDev) {
+        import('@/lib/socket-client').then(({ subscribeToSummaryUpdates }) => {
+          unsubscribe = subscribeToSummaryUpdates(handleSummaryUpdate);
+        });
+      } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
+        import('@/lib/pusher-client').then(({ subscribeToSummaryUpdates }) => {
+          unsubscribe = subscribeToSummaryUpdates(handleSummaryUpdate);
+        });
+      }
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [deviceIdOrPondId, fetchWeeklyData]);
+
+  return { chartData, isLoading, error, lastUpdate, refresh: fetchWeeklyData };
+}
+
+// Hook untuk Hourly Chart (24 jam terakhir) - update realtime
+export function useHourlyChart(deviceId?: string) {
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<number>(0);
+
+  const fetchHourlyData = useCallback(async (id?: string) => {
+    if (!id) {
+      setChartData([]);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/telemetry/history?deviceId=${id}&hours=24`);
+      const result = await response.json();
+
+      if (result.success) {
+        setChartData(result.data);
+        setLastUpdate(Date.now());
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('Failed to fetch hourly chart data');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!deviceId) return;
+
+    // Initial fetch
+    fetchHourlyData(deviceId);
+
+    let unsubscribe: (() => void) | undefined;
+
+    // Subscribe to realtime updates
+    if (typeof window !== 'undefined') {
+      const isDev = process.env.NODE_ENV === 'development';
+
+      // Debounce: refresh chart max once per 5 minutes
+      let lastRefresh = 0;
+      const REFRESH_DEBOUNCE = 5 * 60 * 1000; // 5 minutes
+
+      const handleTelemetryUpdate = () => {
+        const now = Date.now();
+        if (now - lastRefresh >= REFRESH_DEBOUNCE) {
+          lastRefresh = now;
+          console.log('📊 Refreshing hourly chart due to new telemetry');
+          fetchHourlyData(deviceId);
+        }
+      };
+
+      if (isDev) {
+        import('@/lib/socket-client').then(({ subscribeToDeviceWebSocket }) => {
+          unsubscribe = subscribeToDeviceWebSocket(deviceId, handleTelemetryUpdate);
+        });
+      } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
+        import('@/lib/pusher-client').then(({ subscribeToDeviceTelemetry }) => {
+          unsubscribe = subscribeToDeviceTelemetry(deviceId, handleTelemetryUpdate);
+        });
+      }
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [deviceId, fetchHourlyData]);
+
+  return { chartData, isLoading, error, lastUpdate, refresh: fetchHourlyData };
+}
+
+// Hook untuk Daily Summary - update sekali per hari atau saat ada data baru
+export function useDailySummary(pondId?: number) {
+  const [summaries, setSummaries] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<number>(0);
+
+  const fetchDailySummary = useCallback(async (id?: number) => {
+    if (!id) {
+      setSummaries([]);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/telemetry/daily-summary?pondId=${id}&days=7`);
+      const result = await response.json();
+
+      if (result.success) {
+        setSummaries(result.data);
+        setLastUpdate(Date.now());
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('Failed to fetch daily summary');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pondId) return;
+
+    // Initial fetch
+    fetchDailySummary(pondId);
+
+    let unsubscribe: (() => void) | undefined;
+
+    // Subscribe to summary updates from cron jobs
+    if (typeof window !== 'undefined') {
+      const isDev = process.env.NODE_ENV === 'development';
+
+      const handleSummaryUpdate = (data: { type: string }) => {
+        if (data.type === 'daily') {
+          console.log('📊 Refreshing daily summary due to cron update');
+          fetchDailySummary(pondId);
+        }
+      };
+
+      if (isDev) {
+        import('@/lib/socket-client').then(({ subscribeToSummaryUpdates }) => {
+          unsubscribe = subscribeToSummaryUpdates(handleSummaryUpdate);
+        });
+      } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
+        import('@/lib/pusher-client').then(({ subscribeToSummaryUpdates }) => {
+          unsubscribe = subscribeToSummaryUpdates(handleSummaryUpdate);
+        });
+      }
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [pondId, fetchDailySummary]);
+
+  return { summaries, isLoading, error, lastUpdate, refresh: fetchDailySummary };
 }

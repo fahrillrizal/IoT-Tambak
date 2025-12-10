@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveDailySummaryForYesterday } from "@/lib/daily-summary-scheduler";
+import { pusher } from "@/lib/pusher";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -12,6 +13,12 @@ export async function POST(request: NextRequest) {
     }
 
     await saveDailySummaryForYesterday();
+
+    // Notify clients that daily summary is updated
+    await pusher.trigger("global-telemetry", "summary-updated", {
+      type: "daily",
+      timestamp: Date.now(),
+    });
 
     return NextResponse.json({
       success: true,
