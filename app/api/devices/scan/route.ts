@@ -21,7 +21,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { deviceName, pondId, deviceType = "SENSOR" } = body;
 
-    // Validate required fields
     if (!deviceName || !pondId) {
       console.warn("Missing required fields:", { deviceName, pondId });
       return NextResponse.json(
@@ -30,7 +29,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate deviceName is a string
     if (typeof deviceName !== "string" || !deviceName.trim()) {
       return NextResponse.json(
         { error: "Device name must be a non-empty string" },
@@ -38,8 +36,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert pondId to integer
-    const parsedPondId = typeof pondId === "string" ? parseInt(pondId, 10) : pondId;
+    const parsedPondId =
+      typeof pondId === "string" ? parseInt(pondId, 10) : pondId;
     if (isNaN(parsedPondId)) {
       console.warn("Invalid pondId:", { pondId, parsedPondId });
       return NextResponse.json(
@@ -63,15 +61,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if device already exists by name
     const existingDbDevice = await prisma.device.findFirst({
       where: { name: deviceName },
       include: { pond: true, userDevices: true },
     });
 
-    // Case 1: Device exists - add current user to it
     if (existingDbDevice) {
-      // Check if user already has access to this device
       const userAlreadyHasDevice = await prisma.userDevice.findFirst({
         where: {
           userId: user.id,
@@ -86,7 +81,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Add user to existing device
       try {
         await prisma.userDevice.create({
           data: {
@@ -119,17 +113,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Case 2: Device doesn't exist - create new device
-    console.log("Creating new device:", { deviceName, deviceType, pond: pond.name });
-    
+    console.log("Creating new device:", {
+      deviceName,
+      deviceType,
+      pond: pond.name,
+    });
+
     let existingTbDevice;
     try {
       existingTbDevice = await thingsboardService.findDeviceByName(deviceName);
     } catch (error) {
       console.error("Error checking existing device in ThingsBoard:", error);
-      // Don't fail if we can't check, proceed with creation
     }
-    
+
     if (existingTbDevice) {
       return NextResponse.json(
         {

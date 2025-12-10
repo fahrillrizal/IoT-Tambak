@@ -42,6 +42,7 @@ function ClaimDevicePageInner() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isExistingDevice, setIsExistingDevice] = useState(false);
+  const [useSamePond, setUseSamePond] = useState(true); // Default: use same pond
 
   const deviceIdLabel = useMemo(() => {
     if (!deviceIdParam) return "(tidak ada)";
@@ -102,7 +103,11 @@ function ClaimDevicePageInner() {
       setError("Device ID tidak tersedia");
       return;
     }
-    if (!selectedPondId) {
+
+    // Use device's pond if "same pond" is selected, otherwise use selected pond
+    const pondIdToUse = useSamePond && device?.pondId ? device.pondId.toString() : selectedPondId;
+
+    if (!pondIdToUse) {
       setError("Pilih kolam terlebih dahulu");
       return;
     }
@@ -115,7 +120,7 @@ function ClaimDevicePageInner() {
       const response = await fetch("/api/devices/claim", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId: deviceIdParam, pondId: selectedPondId }),
+        body: JSON.stringify({ deviceId: deviceIdParam, pondId: pondIdToUse }),
       });
 
       const data = await response.json();
@@ -140,7 +145,7 @@ function ClaimDevicePageInner() {
           <div>
             <CardTitle className="text-xl">Klaim Device</CardTitle>
             <p className="text-sm text-gray-600 mt-1">
-              Scan QR akan membuka halaman ini. Pilih kolam untuk menghubungkan device.
+              Pilih kolam untuk menghubungkan device: gunakan kolam yang sama atau pilih kolam lain milik Anda.
             </p>
           </div>
           <QrCode className="h-6 w-6 text-gray-400" />
@@ -188,24 +193,54 @@ function ClaimDevicePageInner() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-700">Pilih Kolam</p>
-                {ponds.length > 0 ? (
-                  <Select value={selectedPondId} onValueChange={setSelectedPondId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih kolam" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ponds.map((pond) => (
-                        <SelectItem key={pond.id} value={pond.id.toString()}>
-                          {pond.name} ({pond._count.devices} device)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-sm text-gray-500">Belum ada kolam. Tambahkan kolam terlebih dahulu.</p>
-                )}
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-gray-700">Assign ke Kolam</p>
+                
+                {/* Option: Use same pond as device owner */}
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="pond-option"
+                    checked={useSamePond}
+                    onChange={() => setUseSamePond(true)}
+                    className="w-4 h-4"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">Kolam yang sama</p>
+                    <p className="text-xs text-gray-500">{device?.pondName}</p>
+                  </div>
+                </label>
+
+                {/* Option: Choose different pond */}
+                <label className="flex items-start gap-3 p-3 border border-gray-200 rounded cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="pond-option"
+                    checked={!useSamePond}
+                    onChange={() => setUseSamePond(false)}
+                    className="w-4 h-4 mt-1"
+                  />
+                  <div className="flex-1 space-y-2">
+                    <p className="text-sm font-medium text-gray-900">Kolam lain</p>
+                    {!useSamePond && ponds.length > 0 && (
+                      <Select value={selectedPondId} onValueChange={setSelectedPondId}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Pilih kolam" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ponds.map((pond) => (
+                            <SelectItem key={pond.id} value={pond.id.toString()}>
+                              {pond.name} ({pond._count.devices} device)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {!useSamePond && ponds.length === 0 && (
+                      <p className="text-xs text-gray-500">Belum ada kolam. Tambahkan kolam terlebih dahulu.</p>
+                    )}
+                  </div>
+                </label>
               </div>
 
               {success && (

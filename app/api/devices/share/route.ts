@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify user owns this device
     const device = await prisma.device.findFirst({
       where: {
         id: parseInt(deviceId),
@@ -45,16 +44,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find target user
     const targetUser = await prisma.user.findUnique({
       where: { email: userEmail },
     });
 
     if (!targetUser) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     if (targetUser.id === user.id) {
@@ -64,7 +59,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if device is already shared
     const existingShare = await prisma.userDevice.findFirst({
       where: {
         userId: targetUser.id,
@@ -79,7 +73,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create share
     await prisma.userDevice.create({
       data: {
         userId: targetUser.id,
@@ -134,7 +127,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Verify user owns this device
     const device = await prisma.device.findFirst({
       where: {
         id: parseInt(deviceId),
@@ -151,19 +143,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Find target user
     const targetUser = await prisma.user.findUnique({
       where: { email: userEmail },
     });
 
     if (!targetUser) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Delete share
     await prisma.userDevice.deleteMany({
       where: {
         userId: targetUser.id,
@@ -185,7 +172,9 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Failed to remove device access",
+          error instanceof Error
+            ? error.message
+            : "Failed to remove device access",
       },
       { status: 500 }
     );
@@ -217,7 +206,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user owns this device
     const device = await prisma.device.findFirst({
       where: {
         id: parseInt(deviceId),
@@ -234,7 +222,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all users this device is shared with
     const sharedUsers = await prisma.userDevice.findMany({
       where: {
         deviceId: device.id,

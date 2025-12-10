@@ -4,6 +4,13 @@ import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
 import {
   AlertCircle,
@@ -11,6 +18,8 @@ import {
   QrCode as QrCodeIcon,
   Trash2,
   CheckCircle2,
+  Edit2,
+  X,
 } from "lucide-react";
 
 interface Device {
@@ -25,6 +34,12 @@ interface Device {
   createdAt: string;
 }
 
+interface Pond {
+  id: number;
+  name: string;
+  _count: { devices: number };
+}
+
 interface DevicesPageClientProps {
   defaultCollapsed?: boolean;
 }
@@ -33,15 +48,32 @@ export default function DevicesPageClient({
   defaultCollapsed,
 }: DevicesPageClientProps) {
   const [devices, setDevices] = useState<Device[]>([]);
+  const [ponds, setPonds] = useState<Pond[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+  const [editingDeviceId, setEditingDeviceId] = useState<number | null>(null);
+  const [selectedPondId, setSelectedPondId] = useState<string>("");
+  const [savingPond, setSavingPond] = useState(false);
 
   useEffect(() => {
     fetchDevices();
+    fetchPonds();
   }, []);
+
+  const fetchPonds = async () => {
+    try {
+      const response = await fetch("/api/ponds");
+      const data = await response.json();
+      if (data.success) {
+        setPonds(data.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch ponds:", err);
+    }
+  };
 
   const fetchDevices = async () => {
     try {
@@ -97,6 +129,63 @@ export default function DevicesPageClient({
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleEditPond = (device: Device) => {
+    setEditingDeviceId(device.id);
+    setSelectedPondId(device.pondId.toString());
+  };
+
+  const handleSavePond = async (deviceId: number) => {
+    if (!selectedPondId) {
+      setError("Please select a pond");
+      return;
+    }
+
+    try {
+      setSavingPond(true);
+      setError(null);
+
+      const response = await fetch(`/api/devices/${deviceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pondId: parseInt(selectedPondId, 10) }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update pond");
+      }
+
+      // Update local device
+      setDevices(
+        devices.map((d) =>
+          d.id === deviceId
+            ? {
+                ...d,
+                pondId: parseInt(selectedPondId, 10),
+                pondName:
+                  ponds.find((p) => p.id === parseInt(selectedPondId, 10))
+                    ?.name || d.pondName,
+              }
+            : d
+        )
+      );
+
+      setEditingDeviceId(null);
+      setDeleteSuccess("Pond location updated successfully");
+      setTimeout(() => setDeleteSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update pond");
+    } finally {
+      setSavingPond(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingDeviceId(null);
+    setSelectedPondId("");
   };
 
   const selectedDevice = devices.find((d) => d.id === selectedDeviceId);
@@ -217,9 +306,67 @@ export default function DevicesPageClient({
                       <label className="text-sm font-medium text-gray-600">
                         Pond
                       </label>
-                      <p className="text-gray-900 font-semibold">
-                        {selectedDevice.pondName}
-                      </p>
+                      {editingDeviceId === selectedDevice.id ? (
+                        <div className="mt-2 space-y-2">
+                          <Select
+                            value={selectedPondId}
+                            onValueChange={setSelectedPondId}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select pond" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ponds.map((pond) => (
+                                <SelectItem
+                                  key={pond.id}
+                                  value={pond.id.toString()}
+                                >
+                                  {pond.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleSavePond(selectedDevice.id)}
+                              disabled={savingPond}
+                              className="flex-1"
+                            >
+                              {savingPond ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCancelEdit}
+                              disabled={savingPond}
+                              className="flex-1"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-gray-900 font-semibold">
+                            {selectedDevice.pondName}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditPond(selectedDevice)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
                     <div>

@@ -18,18 +18,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get devices from user's own ponds AND shared devices
     const devices = await prisma.device.findMany({
       where: {
         isActive: true,
         OR: [
-          // Devices from user's own ponds
           {
             pond: {
               userId: user.id,
             },
           },
-          // Devices shared with user
+
           {
             userDevices: {
               some: {
@@ -47,7 +45,6 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    
     console.log(
       "Found devices:",
       devices.map((d) => ({
@@ -57,7 +54,6 @@ export async function GET(request: NextRequest) {
       }))
     );
 
-    
     const enrichedDevices = await Promise.all(
       devices.map(async (device) => {
         let isOnline = false;
@@ -80,7 +76,6 @@ export async function GET(request: NextRequest) {
             if (telemetry && typeof telemetry === "object") {
               const keys = Object.keys(telemetry);
               if (keys.length > 0) {
-                // Set online only if telemetry timestamp is within last 5 minutes
                 const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
                 isOnline = keys.some((key) => {
                   const values = telemetry[key];
@@ -101,8 +96,6 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        
-        // Update deviceStatus in DB to reflect online/offline
         const desiredStatus = isOnline ? "ACTIVE" : "INACTIVE";
         if (device.deviceStatus !== desiredStatus) {
           try {
@@ -111,28 +104,30 @@ export async function GET(request: NextRequest) {
               data: { deviceStatus: desiredStatus },
             });
           } catch (updateErr) {
-            console.error(`Failed to update device status for ${device.id}:`, updateErr);
+            console.error(
+              `Failed to update device status for ${device.id}:`,
+              updateErr
+            );
           }
         }
 
         return {
           id: device.id,
           name: device.name,
-          deviceId: device.thingsboardDeviceId || "", 
+          deviceId: device.thingsboardDeviceId || "",
           thingsboardDeviceId: device.thingsboardDeviceId || "",
           deviceToken: device.deviceToken,
           deviceType: device.deviceType,
           isOnline,
           pondId: device.pond.id,
           pondName: device.pond.name,
-          notifications: 0, 
+          notifications: 0,
           createdAt: device.createdAt.toISOString(),
           updatedAt: device.updatedAt.toISOString(),
         };
       })
     );
 
-    
     const validDevices = enrichedDevices.filter((d) => d.deviceId);
 
     console.log(
@@ -191,13 +186,12 @@ export async function DELETE(request: NextRequest) {
       where: {
         id: parseInt(deviceId),
         OR: [
-          // User owns the pond
           {
             pond: {
               userId: user.id,
             },
           },
-          // Device is shared with user
+
           {
             userDevices: {
               some: {
