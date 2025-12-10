@@ -1,21 +1,21 @@
-import { NextRequest, NextResponse } from \"next/server\";
-import { auth } from \"@/lib/auth\";
-import { prisma } from \"@/lib/db\";
-import { thingsboardService } from \"@/lib/thingsboard\";
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { thingsboardService } from "@/lib/thingsboard";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.email) {
-      return NextResponse.json({ error: \"Unauthorized\" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const deviceId = searchParams.get(\"deviceId\");
+    const deviceId = searchParams.get("deviceId");
 
     if (!deviceId) {
       return NextResponse.json(
-        { error: \"Device ID is required\" },
+        { error: "Device ID is required" },
         { status: 400 }
       );
     }
@@ -26,10 +26,37 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: \"User not found\" }, { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const device = await prisma.device.findFirst({\n      where: {\n        thingsboardDeviceId: deviceId,\n        OR: [\n          // User owns the pond\n          {\n            pond: {\n              userId: user.id,\n            },\n          },\n          // Device is shared with user\n          {\n            userDevices: {\n              some: {\n                userId: user.id,\n              },\n            },\n          },\n        ],\n      },\n    });\n\n    if (!device) {\n      return NextResponse.json(\n        { error: \"Device not found or access denied\" },\n        { status: 404 }\n      );\n    }
+    const device = await prisma.device.findFirst({
+      where: {
+        thingsboardDeviceId: deviceId,
+        OR: [
+          // User owns the pond
+          {
+            pond: {
+              userId: user.id,
+            },
+          },
+          // Device is shared with user
+          {
+            userDevices: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    if (!device) {
+      return NextResponse.json(
+        { error: "Device not found or access denied" },
+        { status: 404 }
+      );
+    }
 
     const keys = [
       "temperature",
