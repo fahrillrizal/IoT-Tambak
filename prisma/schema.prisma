@@ -58,9 +58,10 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime? @updatedAt @map("updated_at")
 
-  ponds    Pond[]
-  accounts Account[]
-  sessions Session[]
+  ponds        Pond[]
+  accounts     Account[]
+  sessions     Session[]
+  userDevices  UserDevice[]
 
   @@index([email])
   @@index([username])
@@ -142,6 +143,7 @@ model Device {
   updatedAt           DateTime         @updatedAt @map("updated_at")
   pond                Pond             @relation(fields: [pondId], references: [id], onDelete: Cascade)
   feedingHistory      FeedingHistory[]
+  userDevices         UserDevice[]
 
   @@index([pondId])
   @@index([deviceToken])
@@ -252,6 +254,21 @@ model HourlySummary {
   @@index([pondId])
   @@index([timestamp])
   @@map("hourly_summaries")
+}
+
+model UserDevice {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  deviceId  Int      @map("device_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([deviceId])
+  @@map("user_devices")
 }
 
 model PasswordResetOTP {

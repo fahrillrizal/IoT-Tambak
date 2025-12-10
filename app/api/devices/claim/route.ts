@@ -28,12 +28,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Check: device exists, user owns pond OR device is shared with user
     const device = await prisma.device.findFirst({
       where: {
         thingsboardDeviceId: deviceId,
-        pond: {
-          userId: user.id,
-        },
+        OR: [
+          // User owns the pond
+          {
+            pond: {
+              userId: user.id,
+            },
+          },
+          // Device is shared with user
+          {
+            userDevices: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        ],
       },
       include: {
         pond: { select: { id: true, name: true } },
@@ -97,6 +111,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Check: user owns the pond (required for reassigning device)
     const device = await prisma.device.findFirst({
       where: {
         thingsboardDeviceId: deviceId,
@@ -108,7 +123,7 @@ export async function PUT(request: NextRequest) {
 
     if (!device) {
       return NextResponse.json(
-        { error: "Device not found or access denied" },
+        { error: "Device not found or access denied. Only pond owner can reassign device." },
         { status: 404 }
       );
     }

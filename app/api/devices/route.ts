@@ -18,12 +18,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Get devices from user's own ponds AND shared devices
     const devices = await prisma.device.findMany({
       where: {
-        pond: {
-          userId: user.id,
-        },
         isActive: true,
+        OR: [
+          // Devices from user's own ponds
+          {
+            pond: {
+              userId: user.id,
+            },
+          },
+          // Devices shared with user
+          {
+            userDevices: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        ],
       },
       include: {
         pond: {
@@ -176,9 +190,22 @@ export async function DELETE(request: NextRequest) {
     const device = await prisma.device.findFirst({
       where: {
         id: parseInt(deviceId),
-        pond: {
-          userId: user.id,
-        },
+        OR: [
+          // User owns the pond
+          {
+            pond: {
+              userId: user.id,
+            },
+          },
+          // Device is shared with user
+          {
+            userDevices: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        ],
       },
       include: { pond: true },
     });

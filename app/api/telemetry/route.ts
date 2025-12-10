@@ -1,23 +1,35 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { thingsboardService } from "@/lib/thingsboard";
+import { NextRequest, NextResponse } from \"next/server\";
+import { auth } from \"@/lib/auth\";
+import { prisma } from \"@/lib/db\";
+import { thingsboardService } from \"@/lib/thingsboard\";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: \"Unauthorized\" }, { status: 401 });
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const deviceId = searchParams.get("deviceId");
+    const deviceId = searchParams.get(\"deviceId\");
 
     if (!deviceId) {
       return NextResponse.json(
-        { error: "Device ID is required" },
+        { error: \"Device ID is required\" },
         { status: 400 }
       );
     }
+
+    // Verify user has access to this device
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: \"User not found\" }, { status: 404 });
+    }
+
+    const device = await prisma.device.findFirst({\n      where: {\n        thingsboardDeviceId: deviceId,\n        OR: [\n          // User owns the pond\n          {\n            pond: {\n              userId: user.id,\n            },\n          },\n          // Device is shared with user\n          {\n            userDevices: {\n              some: {\n                userId: user.id,\n              },\n            },\n          },\n        ],\n      },\n    });\n\n    if (!device) {\n      return NextResponse.json(\n        { error: \"Device not found or access denied\" },\n        { status: 404 }\n      );\n    }
 
     const keys = [
       "temperature",

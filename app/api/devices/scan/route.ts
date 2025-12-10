@@ -39,23 +39,70 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingDevice =
+    // Check if device already exists by name
+    const existingDbDevice = await prisma.device.findFirst({
+      where: { name: deviceName },
+      include: { pond: true, userDevices: true },
+    });
+
+    // Case 1: Device exists - add current user to it
+    if (existingDbDevice) {
+      // Check if user already has access to this device
+      const userAlreadyHasDevice = await prisma.userDevice.findFirst({
+        where: {
+          userId: user.id,
+          deviceId: existingDbDevice.id,
+        },
+      });
+
+      if (userAlreadyHasDevice) {
+        return NextResponse.json(
+          { error: "You already have access to this device" },
+          { status: 409 }
+        );
+      }
+
+      // Add user to existing device
+      try {
+        await prisma.userDevice.create({
+          data: {
+            userId: user.id,
+            deviceId: existingDbDevice.id,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          isExisting: true,
+          data: {
+            id: existingDbDevice.id,
+            name: existingDbDevice.name,
+            deviceToken: existingDbDevice.deviceToken,
+            thingsboardDeviceId: existingDbDevice.thingsboardDeviceId,
+            pondId: existingDbDevice.pondId,
+            pondName: existingDbDevice.pond.name,
+            deviceType: existingDbDevice.deviceType,
+            createdAt: existingDbDevice.createdAt,
+            message: `Device added to your account. Previously registered by ${existingDbDevice.userDevices.length} other user(s)`,
+          },
+        });
+      } catch (error) {
+        console.error("Error adding user to existing device:", error);
+        return NextResponse.json(
+          { error: "Failed to add device to your account" },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Case 2: Device doesn't exist - create new device
+    const existingTbDevice =
       await thingsboardService.findDeviceByName(deviceName);
-    if (existingDevice) {
+    if (existingTbDevice) {
       return NextResponse.json(
         {
           error: `Device with name "${deviceName}" already exists in ThingsBoard`,
         },
-        { status: 409 }
-      );
-    }
-
-    const existingDbDevice = await prisma.device.findFirst({
-      where: { name: deviceName },
-    });
-    if (existingDbDevice) {
-      return NextResponse.json(
-        { error: `Device with name "${deviceName}" already exists` },
         { status: 409 }
       );
     }
@@ -116,9 +163,15 @@ export async function POST(request: NextRequest) {
           deviceType,
           deviceToken: accessToken,
           thingsboardDeviceId: tbDeviceId,
+          userDevices: {
+            create: {
+              userId: user.id,
+            },
+          },
         },
         include: {
           pond: true,
+          userDevices: true,
         },
       });
     } catch (dbError) {
@@ -148,6 +201,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      isExisting: false,
       data: {
         id: device.id,
         name: device.name,
