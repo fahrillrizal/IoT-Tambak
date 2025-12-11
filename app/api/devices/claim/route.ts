@@ -182,6 +182,19 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    const userAlreadyHasAccess =
+      device.pond.userId === user.id ||
+      device.userDevices.some((ud) => ud.userId === user.id);
+
+    if (!userAlreadyHasAccess) {
+      await prisma.userDevice.create({
+        data: {
+          userId: user.id,
+          deviceId: device.id,
+        },
+      });
+    }
+
     try {
       if (device.thingsboardDeviceId) {
         await thingsboardService.saveDeviceAttributes(
