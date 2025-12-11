@@ -301,12 +301,14 @@ export function useDeviceSelection(initialDevice?: string) {
         const result = await response.json();
 
         if (result.success) {
-          setDevices(result.data || []);
+          const fetchedDevices = result.data || [];
 
-          if (result.data?.length && !selectedDevice) {
-            setSelectedDevice(result.data[0].thingsboardDeviceId || "");
+          setDevices(fetchedDevices);
+
+          if (fetchedDevices.length && !selectedDevice) {
+            setSelectedDevice(fetchedDevices[0].thingsboardDeviceId || "");
           }
-          if (!result.data?.length) {
+          if (!fetchedDevices.length) {
             setSelectedDevice("");
           }
         }
@@ -343,11 +345,15 @@ export function useDeviceSelection(initialDevice?: string) {
 
     const handleTelemetry = (data: { deviceId: string }) => {
       const now = Date.now();
+
       lastTelemetryRef.current.set(data.deviceId, now);
+      console.log(
+        `📡 Telemetry received for ${data.deviceId}, updating timestamp`
+      );
 
       setDevices((prevDevices) =>
         prevDevices.map((device) =>
-          device.thingsboardDeviceId === data.deviceId && !device.isOnline
+          device.thingsboardDeviceId === data.deviceId
             ? { ...device, isOnline: true }
             : device
         )
@@ -388,15 +394,14 @@ export function useDeviceSelection(initialDevice?: string) {
             device.thingsboardDeviceId
           );
 
-          if (
-            lastTime &&
-            now - lastTime >= DEVICE_OFFLINE_TIMEOUT &&
-            device.isOnline
-          ) {
-            console.log(
-              `⚠️ Device ${device.name} marked offline (no data for 1 min)`
-            );
-            return { ...device, isOnline: false };
+          if (device.isOnline && lastTime) {
+            const timeSinceLastTelemetry = now - lastTime;
+            if (timeSinceLastTelemetry >= DEVICE_OFFLINE_TIMEOUT) {
+              console.log(
+                `⚠️ Device ${device.name} marked offline (no data for ${Math.round(timeSinceLastTelemetry / 1000)}s)`
+              );
+              return { ...device, isOnline: false };
+            }
           }
 
           return device;
@@ -404,10 +409,11 @@ export function useDeviceSelection(initialDevice?: string) {
       );
     };
 
+    checkOfflineDevices();
     const interval = setInterval(checkOfflineDevices, 10000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [devices.length]);
 
   const currentDevice =
     devices.find((d) => d.thingsboardDeviceId === selectedDevice) || devices[0];
