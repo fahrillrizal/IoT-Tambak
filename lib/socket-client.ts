@@ -1,9 +1,8 @@
-// lib/socket-client.ts (Client-side WebSocket for development)
-import { io, Socket } from 'socket.io-client';
+import { io, Socket } from "socket.io-client";
 
 let socketInstance: Socket | null = null;
+let connectionState: string = "disconnected";
 
-// Interface untuk telemetry data (sama dengan pusher-client)
 export interface TelemetryPayload {
   deviceId: string;
   temperature?: number;
@@ -14,46 +13,74 @@ export interface TelemetryPayload {
   timestamp: number;
 }
 
+export interface SummaryUpdatePayload {
+  type: "hourly" | "daily" | "weekly";
+  timestamp: number;
+}
+
 export function getSocketClient(): Socket {
-  if (!socketInstance && typeof window !== 'undefined') {
+  if (!socketInstance && typeof window !== "undefined") {
     socketInstance = io({
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 30000,
+      timeout: 20000,
+      autoConnect: true,
     });
 
-    socketInstance.on('connect', () => {
-      console.log('✓ Socket.IO connected:', socketInstance?.id);
+    socketInstance.on("connect", () => {
+      connectionState = "connected";
+      console.log("✓ Socket.IO connected:", socketInstance?.id);
     });
 
-    socketInstance.on('disconnect', (reason) => {
-      console.log('Socket.IO disconnected:', reason);
+    socketInstance.on("disconnect", (reason) => {
+      connectionState = "disconnected";
+      console.log("⚠️ Socket.IO disconnected:", reason);
+
+      if (reason === "io server disconnect") {
+        socketInstance?.connect();
+      }
     });
 
-    socketInstance.on('connect_error', (error) => {
-      console.error('Socket.IO connection error:', error);
+    socketInstance.on("connect_error", (error) => {
+      connectionState = "error";
+      console.error("❌ Socket.IO connection error:", error.message);
+    });
+
+    socketInstance.on("reconnect", (attemptNumber) => {
+      console.log(`✓ Socket.IO reconnected after ${attemptNumber} attempts`);
+    });
+
+    socketInstance.on("reconnect_attempt", (attemptNumber) => {
+      console.log(`🔄 Socket.IO reconnection attempt ${attemptNumber}`);
     });
   }
   return socketInstance!;
 }
 
-// Subscribe to device telemetry via WebSocket (development)
+export function getSocketConnectionState(): string {
+  return connectionState;
+}
+
 export function subscribeToDeviceWebSocket(
   deviceId: string,
   callback: (data: TelemetryPayload) => void
 ) {
   const socket = getSocketClient();
-  
-  // Join device room
-  socket.emit('subscribe:device', deviceId);
-  
-  // Listen for telemetry updates
-  const handleTelemetry = (payload: { deviceId: string; data: any; timestamp: number }) => {
+
+  socket.emit("subscribe:device", deviceId);
+  console.log(`📡 Subscribed to WebSocket device: ${deviceId}`);
+
+  const handleTelemetry = (payload: {
+    deviceId: string;
+    data: any;
+    timestamp: number;
+  }) => {
     if (payload.deviceId === deviceId) {
-      console.log('📡 Socket.IO telemetry received:', payload);
-      // Normalize data structure
+      console.log("📡 Socket.IO telemetry received:", payload);
       callback({
         deviceId: payload.deviceId,
         ...payload.data,
@@ -61,62 +88,68 @@ export function subscribeToDeviceWebSocket(
       });
     }
   };
-  
-  socket.on('telemetry', handleTelemetry);
-  socket.on('telemetry:update', handleTelemetry);
 
-  // Return unsubscribe function
+  socket.on("telemetry", handleTelemetry);
+  socket.on("telemetry:update", handleTelemetry);
+
   return () => {
-    socket.emit('unsubscribe:device', deviceId);
-    socket.off('telemetry', handleTelemetry);
-    socket.off('telemetry:update', handleTelemetry);
+    socket.emit("unsubscribe:device", deviceId);
+    socket.off("telemetry", handleTelemetry);
+    socket.off("telemetry:update", handleTelemetry);
+    console.log(`📡 Unsubscribed from WebSocket device: ${deviceId}`);
   };
 }
 
-// Subscribe to all telemetry updates
-export function subscribeToGlobalWebSocket(callback: (data: TelemetryPayload) => void) {
+export function subscribeToGlobalWebSocket(
+  callback: (data: TelemetryPayload) => void
+) {
   const socket = getSocketClient();
-  
-  const handleTelemetry = (payload: { deviceId: string; data: any; timestamp: number }) => {
-    console.log('📡 Socket.IO global telemetry:', payload);
+
+  const handleTelemetry = (payload: {
+    deviceId: string;
+    data: any;
+    timestamp: number;
+  }) => {
     callback({
       deviceId: payload.deviceId,
       ...payload.data,
       timestamp: payload.timestamp,
     });
   };
-  
-  socket.on('telemetry:update', handleTelemetry);
+
+  socket.on("telemetry:update", handleTelemetry);
 
   return () => {
-    socket.off('telemetry:update', handleTelemetry);
+    socket.off("telemetry:update", handleTelemetry);
   };
 }
 
-// Interface untuk summary update event
-export interface SummaryUpdatePayload {
-  type: 'hourly' | 'daily' | 'weekly';
-  timestamp: number;
-}
-
-// Subscribe to summary updates (for development)
-export function subscribeToSummaryUpdates(callback: (data: SummaryUpdatePayload) => void) {
+export function subscribeToSummaryUpdates(
+  callback: (data: SummaryUpdatePayload) => void
+) {
   const socket = getSocketClient();
-  
-  socket.on('summary:updated', (data: SummaryUpdatePayload) => {
-    console.log('📊 Summary updated via Socket.IO:', data);
+
+  socket.on("summary:updated", (data: SummaryUpdatePayload) => {
+    console.log("📊 Summary updated via Socket.IO:", data);
     callback(data);
   });
 
   return () => {
-    socket.off('summary:updated');
+    socket.off("summary:updated");
   };
 }
 
-// Disconnect socket
 export function disconnectSocket() {
   if (socketInstance) {
     socketInstance.disconnect();
     socketInstance = null;
+    connectionState = "disconnected";
+  }
+}
+
+export function reconnectSocket() {
+  if (socketInstance) {
+    socketInstance.disconnect();
+    socketInstance.connect();
   }
 }

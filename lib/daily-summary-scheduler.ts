@@ -1,7 +1,6 @@
-import { prisma } from '@/lib/db';
-import { thingsboardService } from '@/lib/thingsboard';
+import { prisma } from "@/lib/db";
+import { thingsboardService } from "@/lib/thingsboard";
 
-// Retention period: Simpan daily summary selama 90 hari (3 bulan)
 const DAILY_RETENTION_DAYS = 90;
 
 type HourlyAgg = {
@@ -30,15 +29,14 @@ function maxFrom(items: HourlyAgg[]): number {
 
 export async function saveDailySummaryForYesterday() {
   try {
-    console.log('🕐 Starting daily summary save job...');
+    console.log("🕐 Starting daily summary save job...");
 
-    // Use UTC dates
     const now = new Date();
     const yesterday = new Date(now);
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     yesterday.setUTCHours(0, 0, 0, 0);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-    const yesterdayDate = new Date(yesterdayStr); // Keep as Date object for Prisma
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    const yesterdayDate = new Date(yesterdayStr);
 
     const startOfDay = new Date(yesterday);
     startOfDay.setUTCHours(0, 0, 0, 0);
@@ -46,9 +44,10 @@ export async function saveDailySummaryForYesterday() {
     endOfDay.setUTCHours(23, 59, 59, 999);
 
     console.log(`📊 Daily summary for date: ${yesterdayStr}`);
-    console.log(`   Time range (UTC): ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+    console.log(
+      `   Time range (UTC): ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`
+    );
 
-    // Fetch ponds dengan SEMUA device aktif
     const ponds = await prisma.pond.findMany({
       where: {
         devices: {
@@ -73,16 +72,17 @@ export async function saveDailySummaryForYesterday() {
 
     for (const pond of ponds) {
       try {
-        // 1) Gunakan hourly_summaries jika tersedia (sudah teragregasi per pond)
         const hourly = await prisma.hourlySummary.findMany({
           where: {
             pondId: pond.id,
             timestamp: { gte: startOfDay, lte: endOfDay },
           },
-          orderBy: { timestamp: 'asc' },
+          orderBy: { timestamp: "asc" },
         });
 
-        console.log(`   📈 Found ${hourly.length} hourly records for pond ${pond.id} (${pond.name}) - ${pond.devices.length} devices`);
+        console.log(
+          `   📈 Found ${hourly.length} hourly records for pond ${pond.id} (${pond.name}) - ${pond.devices.length} devices`
+        );
 
         let tempStats: HourlyAgg;
         let phStats: HourlyAgg;
@@ -92,14 +92,39 @@ export async function saveDailySummaryForYesterday() {
         let dataPoints = 0;
 
         if (hourly.length > 0) {
-          // Hourly summary sudah teragregasi dari semua device, tinggal aggregate per hari
-          const toAgg = (picker: (h: any) => HourlyAgg) => hourly.map(picker).filter((x) => x.count > 0);
+          const toAgg = (picker: (h: any) => HourlyAgg) =>
+            hourly.map(picker).filter((x) => x.count > 0);
 
-          const tItems = toAgg((h) => ({ avg: Number(h.avgTemperature), min: Number(h.minTemperature), max: Number(h.maxTemperature), count: h.dataPoints }));
-          const pItems = toAgg((h) => ({ avg: Number(h.avgPh), min: Number(h.minPh), max: Number(h.maxPh), count: h.dataPoints }));
-          const dItems = toAgg((h) => ({ avg: Number(h.avgDissolvedOxygen), min: Number(h.minDissolvedOxygen), max: Number(h.maxDissolvedOxygen), count: h.dataPoints }));
-          const sItems = toAgg((h) => ({ avg: Number(h.avgSalinity), min: Number(h.avgSalinity), max: Number(h.avgSalinity), count: h.dataPoints }));
-          const tbItems = toAgg((h) => ({ avg: Number(h.avgTurbidity), min: Number(h.avgTurbidity), max: Number(h.avgTurbidity), count: h.dataPoints }));
+          const tItems = toAgg((h) => ({
+            avg: Number(h.avgTemperature),
+            min: Number(h.minTemperature),
+            max: Number(h.maxTemperature),
+            count: h.dataPoints,
+          }));
+          const pItems = toAgg((h) => ({
+            avg: Number(h.avgPh),
+            min: Number(h.minPh),
+            max: Number(h.maxPh),
+            count: h.dataPoints,
+          }));
+          const dItems = toAgg((h) => ({
+            avg: Number(h.avgDissolvedOxygen),
+            min: Number(h.minDissolvedOxygen),
+            max: Number(h.maxDissolvedOxygen),
+            count: h.dataPoints,
+          }));
+          const sItems = toAgg((h) => ({
+            avg: Number(h.avgSalinity),
+            min: Number(h.avgSalinity),
+            max: Number(h.avgSalinity),
+            count: h.dataPoints,
+          }));
+          const tbItems = toAgg((h) => ({
+            avg: Number(h.avgTurbidity),
+            min: Number(h.avgTurbidity),
+            max: Number(h.avgTurbidity),
+            count: h.dataPoints,
+          }));
 
           tempStats = {
             avg: weightedAverage(tItems),
@@ -134,13 +159,25 @@ export async function saveDailySummaryForYesterday() {
 
           dataPoints = tempStats.count;
         } else {
-          // 2) Fallback: langsung hitung dari ThingsBoard untuk SEMUA device di pond
-          console.log(`   🔄 No hourly summaries, fetching from ThingsBoard for ${pond.devices.length} devices`);
-          
-          const keys = ['temperature', 'ph', 'dissolvedOxygen', 'salinity', 'turbidity'];
-          const allStats: Record<string, number[]> = { temperature: [], ph: [], dissolvedOxygen: [], salinity: [], turbidity: [] };
+          console.log(
+            `   🔄 No hourly summaries, fetching from ThingsBoard for ${pond.devices.length} devices`
+          );
 
-          // Fetch dari semua device dan gabungkan
+          const keys = [
+            "temperature",
+            "ph",
+            "dissolvedOxygen",
+            "salinity",
+            "turbidity",
+          ];
+          const allStats: Record<string, number[]> = {
+            temperature: [],
+            ph: [],
+            dissolvedOxygen: [],
+            salinity: [],
+            turbidity: [],
+          };
+
           for (const device of pond.devices) {
             try {
               const history = await thingsboardService.getTelemetryHistory(
@@ -154,13 +191,20 @@ export async function saveDailySummaryForYesterday() {
               for (const [key, values] of Object.entries(history)) {
                 if (Array.isArray(values) && key in allStats) {
                   for (const item of values) {
-                    allStats[key as keyof typeof allStats].push(parseFloat(item.value));
+                    allStats[key as keyof typeof allStats].push(
+                      parseFloat(item.value)
+                    );
                   }
                 }
               }
-              console.log(`      📡 Fetched data from device ${device.name} (${device.thingsboardDeviceId})`);
+              console.log(
+                `      📡 Fetched data from device ${device.name} (${device.thingsboardDeviceId})`
+              );
             } catch (deviceError) {
-              console.warn(`      ⚠️ Failed to fetch from device ${device.name}:`, deviceError);
+              console.warn(
+                `      ⚠️ Failed to fetch from device ${device.name}:`,
+                deviceError
+              );
             }
           }
 
@@ -183,7 +227,6 @@ export async function saveDailySummaryForYesterday() {
           dataPoints = tempStats.count;
         }
 
-        // Skip jika tidak ada data
         if (dataPoints === 0) {
           console.log(`   ⏭️ Skipping pond ${pond.id} - no data points`);
           continue;
@@ -236,9 +279,10 @@ export async function saveDailySummaryForYesterday() {
           },
         });
 
-        console.log(`✅ Saved daily summary for pond ${pond.id} (${pond.name}) - ${pond.devices.length} devices, ${dataPoints} data points`);
+        console.log(
+          `✅ Saved daily summary for pond ${pond.id} (${pond.name}) - ${pond.devices.length} devices, ${dataPoints} data points`
+        );
 
-        // Cleanup hourly summaries untuk pond ini setelah berhasil disimpan
         try {
           const deletedCount = await prisma.hourlySummary.deleteMany({
             where: {
@@ -247,26 +291,29 @@ export async function saveDailySummaryForYesterday() {
             },
           });
           if (deletedCount.count > 0) {
-            console.log(`🗑️  Deleted ${deletedCount.count} hourly records for pond ${pond.id}`);
+            console.log(
+              `🗑️  Deleted ${deletedCount.count} hourly records for pond ${pond.id}`
+            );
           }
         } catch (deleteError) {
-          console.warn(`⚠️  Failed to cleanup hourly summaries for pond ${pond.id}:`, deleteError);
+          console.warn(
+            `⚠️  Failed to cleanup hourly summaries for pond ${pond.id}:`,
+            deleteError
+          );
         }
       } catch (error) {
         console.error(`❌ Error processing pond ${pond.id}:`, error);
       }
     }
 
-    // Cleanup old daily summaries (older than retention period)
     await cleanupOldDailySummaries();
 
-    console.log('✨ Daily summary save job completed!');
+    console.log("✨ Daily summary save job completed!");
   } catch (error) {
-    console.error('🚨 Daily summary scheduler error:', error);
+    console.error("🚨 Daily summary scheduler error:", error);
   }
 }
 
-// Cleanup daily summaries older than retention period
 export async function cleanupOldDailySummaries() {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - DAILY_RETENTION_DAYS);
@@ -282,12 +329,14 @@ export async function cleanupOldDailySummaries() {
     });
 
     if (result.count > 0) {
-      console.log(`🗑️ Cleaned up ${result.count} daily summaries older than ${DAILY_RETENTION_DAYS} days`);
+      console.log(
+        `🗑️ Cleaned up ${result.count} daily summaries older than ${DAILY_RETENTION_DAYS} days`
+      );
     }
 
     return result.count;
   } catch (error) {
-    console.error('Failed to cleanup daily summaries:', error);
+    console.error("Failed to cleanup daily summaries:", error);
     return 0;
   }
 }

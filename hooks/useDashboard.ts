@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import type {
@@ -10,9 +10,38 @@ import type {
 import {
   DEFAULT_SENSOR_DATA,
   DEFAULT_FEEDING_SCHEDULES,
-  SENSOR_DEVICES,
-  TREND_CHART_DATA,
 } from "@/constants/dashboard";
+
+function calculateStatus(
+  data: Partial<TelemetryData>
+): TelemetryData["status"] {
+  const t = data.temperature;
+  const p = data.ph;
+  const d = data.dissolvedOxygen;
+  const s = data.salinity;
+
+  if (t === null && p === null && d === null && s === null) {
+    return "Offline";
+  }
+
+  if (
+    (t !== undefined && t !== null && (t < 26 || t > 32)) ||
+    (p !== undefined && p !== null && (p < 7.5 || p > 8.5)) ||
+    (d !== undefined && d !== null && (d < 4 || d > 8))
+  ) {
+    return "Critical";
+  }
+
+  if (
+    (s !== undefined && s !== null && (s < 15 || s > 30)) ||
+    (t !== undefined && t !== null && (t < 27 || t > 31)) ||
+    (p !== undefined && p !== null && (p < 7.8 || p > 8.2))
+  ) {
+    return "Warning";
+  }
+
+  return "Normal";
+}
 
 export function useAuth() {
   const { data: session, status, update: updateSession } = useSession();
@@ -64,9 +93,21 @@ export function usePasswordCheck() {
 }
 
 export function useSensorData(deviceId?: string) {
-  const [sensorData, setSensorData] = useState<TelemetryData | null>(DEFAULT_SENSOR_DATA as TelemetryData);
+  const [sensorData, setSensorData] = useState<TelemetryData>({
+    temperature: null,
+    ph: null,
+    dissolvedOxygen: null,
+    salinity: null,
+    turbidity: null,
+    status: "Offline",
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<number | null>(null);
+
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const deviceIdRef = useRef<string | undefined>(deviceId);
 
   const fetchSensorData = useCallback(async (id?: string) => {
     if (!id) return;
@@ -78,17 +119,22 @@ export function useSensorData(deviceId?: string) {
       const response = await fetch(`/api/telemetry?deviceId=${id}`);
       const result = await response.json();
 
-      if (result.success) {
-        setSensorData({
+      if (result.success && result.data) {
+        const partialData = {
           temperature: result.data.temperature ?? null,
           ph: result.data.ph ?? null,
           dissolvedOxygen: result.data.dissolvedOxygen ?? null,
           salinity: result.data.salinity ?? null,
           turbidity: result.data.turbidity ?? null,
-          status: result.data.status ?? "Offline",
+        };
+
+        setSensorData({
+          ...partialData,
+          status: calculateStatus(partialData),
         });
+        setLastUpdate(Date.now());
       } else {
-        setError(result.error);
+        setError(result.error || "Failed to fetch data");
       }
     } catch (err) {
       setError("Failed to fetch sensor data");
@@ -99,97 +145,106 @@ export function useSensorData(deviceId?: string) {
   }, []);
 
   useEffect(() => {
-    if (!deviceId) return;
+    deviceIdRef.current = deviceId;
 
-    // Initial fetch
-    fetchSensorData(deviceId);
-
-    let unsubscribe: (() => void) | undefined;
-
-    // Helper function to calculate status based on sensor values
-    const calculateStatus = (data: any): 'Normal' | 'Warning' | 'Critical' => {
-      const t = data.temperature;
-      const p = data.ph;
-      const d = data.dissolvedOxygen;
-      const s = data.salinity;
-
-      // Critical conditions
-      if (
-        (t !== undefined && t !== null && (t < 26 || t > 32)) ||
-        (p !== undefined && p !== null && (p < 7.5 || p > 8.5)) ||
-        (d !== undefined && d !== null && (d < 4 || d > 8))
-      ) {
-        return 'Critical';
-      }
-
-      // Warning conditions
-      if (
-        (s !== undefined && s !== null && (s < 15 || s > 30)) ||
-        (t !== undefined && t !== null && (t < 27 || t > 31)) ||
-        (p !== undefined && p !== null && (p < 7.8 || p > 8.2))
-      ) {
-        return 'Warning';
-      }
-
-      return 'Normal';
-    };
-
-    // Check if we're in browser
-    if (typeof window !== 'undefined') {
-      const isDev = process.env.NODE_ENV === 'development';
-
-      if (isDev) {
-        // Development: Use WebSocket (Socket.IO)
-        import('@/lib/socket-client').then(({ subscribeToDeviceWebSocket }) => {
-          unsubscribe = subscribeToDeviceWebSocket(deviceId, (data) => {
-            console.log('📡 Realtime update from WebSocket:', data);
-            setSensorData({
-              temperature: data.temperature ?? null,
-              ph: data.ph ?? null,
-              dissolvedOxygen: data.dissolvedOxygen ?? null,
-              salinity: data.salinity ?? null,
-              turbidity: data.turbidity ?? null,
-              status: calculateStatus(data),
-            });
-          });
-        });
-      } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
-        // Production: Use Pusher
-        import('@/lib/pusher-client').then(({ subscribeToDeviceTelemetry }) => {
-          unsubscribe = subscribeToDeviceTelemetry(deviceId, (data) => {
-            console.log('📡 Realtime update from Pusher:', data);
-            setSensorData({
-              temperature: data.temperature ?? null,
-              ph: data.ph ?? null,
-              dissolvedOxygen: data.dissolvedOxygen ?? null,
-              salinity: data.salinity ?? null,
-              turbidity: data.turbidity ?? null,
-              status: calculateStatus(data),
-            });
-          });
-        });
-      }
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
     }
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [deviceId, fetchSensorData]);
-
-  return {
-    sensorData:
-      sensorData || {
+    if (!deviceId) {
+      setSensorData({
         temperature: null,
         ph: null,
         dissolvedOxygen: null,
         salinity: null,
         turbidity: null,
         status: "Offline",
-      },
+      });
+      setIsConnected(false);
+      return;
+    }
+
+    fetchSensorData(deviceId);
+
+    if (typeof window !== "undefined") {
+      const isDev = process.env.NODE_ENV === "development";
+      const hasPusher = !!process.env.NEXT_PUBLIC_PUSHER_KEY;
+
+      console.log(
+        `🔌 Setting up realtime: isDev=${isDev}, hasPusher=${hasPusher}`
+      );
+
+      const handleTelemetryUpdate = (data: any) => {
+        if (deviceIdRef.current !== deviceId) {
+          console.log("⏭️ Ignoring update for old device");
+          return;
+        }
+
+        console.log("📡 Realtime update received:", data);
+
+        const partialData = {
+          temperature: data.temperature ?? null,
+          ph: data.ph ?? null,
+          dissolvedOxygen: data.dissolvedOxygen ?? null,
+          salinity: data.salinity ?? null,
+          turbidity: data.turbidity ?? null,
+        };
+
+        setSensorData({
+          ...partialData,
+          status: calculateStatus(partialData),
+        });
+        setLastUpdate(data.timestamp || Date.now());
+        setIsConnected(true);
+      };
+
+      if (isDev) {
+        import("@/lib/socket-client")
+          .then(({ subscribeToDeviceWebSocket }) => {
+            unsubscribeRef.current = subscribeToDeviceWebSocket(
+              deviceId,
+              handleTelemetryUpdate
+            );
+            setIsConnected(true);
+          })
+          .catch((err) => {
+            console.error("Failed to setup WebSocket:", err);
+            setIsConnected(false);
+          });
+      } else if (hasPusher) {
+        import("@/lib/pusher-client")
+          .then(({ subscribeToDeviceTelemetry }) => {
+            unsubscribeRef.current = subscribeToDeviceTelemetry(
+              deviceId,
+              handleTelemetryUpdate
+            );
+            setIsConnected(true);
+          })
+          .catch((err) => {
+            console.error("Failed to setup Pusher:", err);
+            setIsConnected(false);
+          });
+      } else {
+        console.warn("⚠️ No realtime provider configured");
+        setIsConnected(false);
+      }
+    }
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, [deviceId, fetchSensorData]);
+
+  return {
+    sensorData,
     isLoading,
     error,
+    isConnected,
+    lastUpdate,
     fetchSensorData,
     setSensorData,
   };
@@ -232,28 +287,27 @@ export function useFeedingSchedule() {
 
 export function useDeviceSelection(initialDevice?: string) {
   const [devices, setDevices] = useState<SensorDevice[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState(
-    initialDevice || ""
-  );
+  const [selectedDevice, setSelectedDevice] = useState(initialDevice || "");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        const response = await fetch('/api/devices');
+        const response = await fetch("/api/devices");
         const result = await response.json();
-        
+
         if (result.success) {
           setDevices(result.data || []);
+
           if (result.data?.length && !selectedDevice) {
-            setSelectedDevice(result.data[0].deviceId || "");
+            setSelectedDevice(result.data[0].thingsboardDeviceId || "");
           }
           if (!result.data?.length) {
             setSelectedDevice("");
           }
         }
       } catch (error) {
-        console.error('Failed to fetch devices:', error);
+        console.error("Failed to fetch devices:", error);
       } finally {
         setIsLoading(false);
       }
@@ -263,7 +317,7 @@ export function useDeviceSelection(initialDevice?: string) {
   }, []);
 
   const currentDevice =
-    devices.find((d) => d.deviceId === selectedDevice) || devices[0];
+    devices.find((d) => d.thingsboardDeviceId === selectedDevice) || devices[0];
   const totalNotifications = devices.reduce(
     (sum, d) => sum + (d.notifications ?? 0),
     0
@@ -293,11 +347,11 @@ export function useNotifications() {
   return { notifications, addNotification, clearNotifications };
 }
 
-// Hook untuk Weekly Chart - data historical dari daily summaries
-// Update hanya saat daily summary selesai (dari cron job)
-// Param bisa berupa deviceId (string UUID) atau pondId (number)
 export function useWeeklyChart(deviceIdOrPondId?: string | number) {
-  const [chartData, setChartData] = useState<ChartData>({ labels: [], datasets: [] });
+  const [chartData, setChartData] = useState<ChartData>({
+    labels: [],
+    datasets: [],
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
@@ -312,7 +366,6 @@ export function useWeeklyChart(deviceIdOrPondId?: string | number) {
     setError(null);
 
     try {
-      // API accepts both pondId (number) and deviceId (UUID string)
       const response = await fetch(`/api/telemetry/weekly?pondId=${id}`);
       const result = await response.json();
 
@@ -323,7 +376,7 @@ export function useWeeklyChart(deviceIdOrPondId?: string | number) {
         setError(result.error);
       }
     } catch (err) {
-      setError('Failed to fetch weekly chart data');
+      setError("Failed to fetch weekly chart data");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -333,28 +386,26 @@ export function useWeeklyChart(deviceIdOrPondId?: string | number) {
   useEffect(() => {
     if (!deviceIdOrPondId) return;
 
-    // Initial fetch
     fetchWeeklyData(deviceIdOrPondId);
 
     let unsubscribe: (() => void) | undefined;
 
-    // Subscribe to daily summary updates - refresh weekly chart when daily cron completes
-    if (typeof window !== 'undefined') {
-      const isDev = process.env.NODE_ENV === 'development';
+    if (typeof window !== "undefined") {
+      const isDev = process.env.NODE_ENV === "development";
 
       const handleSummaryUpdate = (data: { type: string }) => {
-        if (data.type === 'daily') {
-          console.log('📊 Refreshing weekly chart due to daily summary update');
+        if (data.type === "daily") {
+          console.log("📊 Refreshing weekly chart due to daily summary update");
           fetchWeeklyData(deviceIdOrPondId);
         }
       };
 
       if (isDev) {
-        import('@/lib/socket-client').then(({ subscribeToSummaryUpdates }) => {
+        import("@/lib/socket-client").then(({ subscribeToSummaryUpdates }) => {
           unsubscribe = subscribeToSummaryUpdates(handleSummaryUpdate);
         });
       } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
-        import('@/lib/pusher-client').then(({ subscribeToSummaryUpdates }) => {
+        import("@/lib/pusher-client").then(({ subscribeToSummaryUpdates }) => {
           unsubscribe = subscribeToSummaryUpdates(handleSummaryUpdate);
         });
       }
@@ -370,7 +421,6 @@ export function useWeeklyChart(deviceIdOrPondId?: string | number) {
   return { chartData, isLoading, error, lastUpdate, refresh: fetchWeeklyData };
 }
 
-// Hook untuk Hourly Chart (24 jam terakhir) - update realtime
 export function useHourlyChart(deviceId?: string) {
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -387,7 +437,9 @@ export function useHourlyChart(deviceId?: string) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/telemetry/history?deviceId=${id}&hours=24`);
+      const response = await fetch(
+        `/api/telemetry/history?deviceId=${id}&hours=24`
+      );
       const result = await response.json();
 
       if (result.success) {
@@ -397,7 +449,7 @@ export function useHourlyChart(deviceId?: string) {
         setError(result.error);
       }
     } catch (err) {
-      setError('Failed to fetch hourly chart data');
+      setError("Failed to fetch hourly chart data");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -407,35 +459,38 @@ export function useHourlyChart(deviceId?: string) {
   useEffect(() => {
     if (!deviceId) return;
 
-    // Initial fetch
     fetchHourlyData(deviceId);
 
     let unsubscribe: (() => void) | undefined;
 
-    // Subscribe to realtime updates
-    if (typeof window !== 'undefined') {
-      const isDev = process.env.NODE_ENV === 'development';
+    if (typeof window !== "undefined") {
+      const isDev = process.env.NODE_ENV === "development";
 
-      // Debounce: refresh chart max once per 5 minutes
       let lastRefresh = 0;
-      const REFRESH_DEBOUNCE = 5 * 60 * 1000; // 5 minutes
+      const REFRESH_DEBOUNCE = 5 * 60 * 1000;
 
       const handleTelemetryUpdate = () => {
         const now = Date.now();
         if (now - lastRefresh >= REFRESH_DEBOUNCE) {
           lastRefresh = now;
-          console.log('📊 Refreshing hourly chart due to new telemetry');
+          console.log("📊 Refreshing hourly chart due to new telemetry");
           fetchHourlyData(deviceId);
         }
       };
 
       if (isDev) {
-        import('@/lib/socket-client').then(({ subscribeToDeviceWebSocket }) => {
-          unsubscribe = subscribeToDeviceWebSocket(deviceId, handleTelemetryUpdate);
+        import("@/lib/socket-client").then(({ subscribeToDeviceWebSocket }) => {
+          unsubscribe = subscribeToDeviceWebSocket(
+            deviceId,
+            handleTelemetryUpdate
+          );
         });
       } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
-        import('@/lib/pusher-client').then(({ subscribeToDeviceTelemetry }) => {
-          unsubscribe = subscribeToDeviceTelemetry(deviceId, handleTelemetryUpdate);
+        import("@/lib/pusher-client").then(({ subscribeToDeviceTelemetry }) => {
+          unsubscribe = subscribeToDeviceTelemetry(
+            deviceId,
+            handleTelemetryUpdate
+          );
         });
       }
     }
@@ -450,7 +505,6 @@ export function useHourlyChart(deviceId?: string) {
   return { chartData, isLoading, error, lastUpdate, refresh: fetchHourlyData };
 }
 
-// Hook untuk Daily Summary - update sekali per hari atau saat ada data baru
 export function useDailySummary(pondId?: number) {
   const [summaries, setSummaries] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -467,7 +521,9 @@ export function useDailySummary(pondId?: number) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/telemetry/daily-summary?pondId=${id}&days=7`);
+      const response = await fetch(
+        `/api/telemetry/daily-summary?pondId=${id}&days=7`
+      );
       const result = await response.json();
 
       if (result.success) {
@@ -477,7 +533,7 @@ export function useDailySummary(pondId?: number) {
         setError(result.error);
       }
     } catch (err) {
-      setError('Failed to fetch daily summary');
+      setError("Failed to fetch daily summary");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -487,28 +543,26 @@ export function useDailySummary(pondId?: number) {
   useEffect(() => {
     if (!pondId) return;
 
-    // Initial fetch
     fetchDailySummary(pondId);
 
     let unsubscribe: (() => void) | undefined;
 
-    // Subscribe to summary updates from cron jobs
-    if (typeof window !== 'undefined') {
-      const isDev = process.env.NODE_ENV === 'development';
+    if (typeof window !== "undefined") {
+      const isDev = process.env.NODE_ENV === "development";
 
       const handleSummaryUpdate = (data: { type: string }) => {
-        if (data.type === 'daily') {
-          console.log('📊 Refreshing daily summary due to cron update');
+        if (data.type === "daily") {
+          console.log("📊 Refreshing daily summary due to cron update");
           fetchDailySummary(pondId);
         }
       };
 
       if (isDev) {
-        import('@/lib/socket-client').then(({ subscribeToSummaryUpdates }) => {
+        import("@/lib/socket-client").then(({ subscribeToSummaryUpdates }) => {
           unsubscribe = subscribeToSummaryUpdates(handleSummaryUpdate);
         });
       } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
-        import('@/lib/pusher-client').then(({ subscribeToSummaryUpdates }) => {
+        import("@/lib/pusher-client").then(({ subscribeToSummaryUpdates }) => {
           unsubscribe = subscribeToSummaryUpdates(handleSummaryUpdate);
         });
       }
@@ -521,5 +575,11 @@ export function useDailySummary(pondId?: number) {
     };
   }, [pondId, fetchDailySummary]);
 
-  return { summaries, isLoading, error, lastUpdate, refresh: fetchDailySummary };
+  return {
+    summaries,
+    isLoading,
+    error,
+    lastUpdate,
+    refresh: fetchDailySummary,
+  };
 }
