@@ -24,6 +24,22 @@ export async function triggerTelemetryUpdate(
   ]);
 }
 
+export async function triggerDeviceStatusUpdate(
+  deviceId: string,
+  isOnline: boolean
+) {
+  const payload = {
+    deviceId,
+    isOnline,
+    timestamp: Date.now(),
+  };
+
+  await Promise.all([
+    pusher.trigger(`device-${deviceId}`, "device-status", payload),
+    pusher.trigger("global-telemetry", "device-status", payload),
+  ]);
+}
+
 export async function triggerSummaryUpdate(
   type: "hourly" | "daily" | "weekly"
 ) {

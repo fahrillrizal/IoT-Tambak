@@ -5,17 +5,13 @@ import { Server } from "socket.io";
 import WebSocket from "ws";
 import dotenv from "dotenv";
 import { startCronJobs } from "./lib/cron-jobs";
-import { triggerTelemetryUpdate } from "./lib/pusher";
+import { triggerTelemetryUpdate, triggerDeviceStatusUpdate } from "./lib/pusher";
 import { prisma } from "./lib/db";
 import axios from "axios";
 
 dotenv.config();
 
-const requiredEnv = [
-  "TB_URL",
-  "TB_USERNAME",
-  "TB_PASSWORD",
-];
+const requiredEnv = ["TB_URL", "TB_USERNAME", "TB_PASSWORD"];
 
 requiredEnv.forEach((key) => {
   if (!process.env[key]) {
@@ -48,7 +44,79 @@ const RECONNECT_DELAY = 5000;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 
+const DEVICE_OFFLINE_TIMEOUT = 60000;
+
 const reconnectAttempts = new Map<string, number>();
+
+const deviceLastTelemetry = new Map<string, number>();
+const deviceOfflineTimers = new Map<string, NodeJS.Timeout>();
+
+async function updateDeviceStatus(
+  deviceId: string,
+  isOnline: boolean,
+  io: Server
+) {
+  try {
+    // Only update deviceStatus, don't change isActive (that's for soft delete)
+    await prisma.device.updateMany({
+      where: { thingsboardDeviceId: deviceId },
+      data: {
+        deviceStatus: isOnline ? "ACTIVE" : "INACTIVE",
+        lastHeartbeat: isOnline ? new Date() : undefined,
+      },
+    });
+
+    io.emit("device:status", {
+      deviceId,
+      isOnline,
+      timestamp: Date.now(),
+    });
+
+    // Also trigger Pusher notification in production
+    if (!dev) {
+      triggerDeviceStatusUpdate(deviceId, isOnline).catch((err) => {
+        console.error("Failed to forward device status to Pusher:", err);
+      });
+    }
+
+    console.log(
+      `📡 Device ${deviceId} status updated: ${isOnline ? "ONLINE" : "OFFLINE"}`
+    );
+  } catch (error) {
+    console.error(`Failed to update device status for ${deviceId}:`, error);
+  }
+}
+
+function resetDeviceOfflineTimer(deviceId: string, io: Server) {
+  // Clear existing timer
+  const existingTimer = deviceOfflineTimers.get(deviceId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  // Check if device was previously considered offline (no recent telemetry)
+  const previousLastTelemetry = deviceLastTelemetry.get(deviceId);
+  const wasOffline = !previousLastTelemetry || 
+    (Date.now() - previousLastTelemetry >= DEVICE_OFFLINE_TIMEOUT);
+  
+  // If device was offline (or first time receiving data), mark it as online
+  if (wasOffline) {
+    updateDeviceStatus(deviceId, true, io);
+  }
+
+  // Update last telemetry timestamp
+  deviceLastTelemetry.set(deviceId, Date.now());
+
+  // Set new timer for offline status
+  const timer = setTimeout(() => {
+    console.log(
+      `⚠️ Device ${deviceId} offline - no data received for ${DEVICE_OFFLINE_TIMEOUT / 1000}s`
+    );
+    updateDeviceStatus(deviceId, false, io);
+  }, DEVICE_OFFLINE_TIMEOUT);
+
+  deviceOfflineTimers.set(deviceId, timer);
+}
 
 async function getTBToken(forceRefresh = false): Promise<string> {
   if (!forceRefresh && tbToken && tokenExpiry > Date.now() + 60000) {
@@ -109,6 +177,8 @@ async function subscribeToDeviceTelemetry(deviceId: string, io: Server) {
       console.log(`✓ ThingsBoard WS connected for device: ${deviceId}`);
       reconnectAttempts.set(deviceId, 0);
 
+      resetDeviceOfflineTimer(deviceId, io);
+
       const subscribeCmd = {
         tsSubCmds: [
           {
@@ -162,6 +232,8 @@ async function subscribeToDeviceTelemetry(deviceId: string, io: Server) {
 
           if (Object.keys(telemetryData).length > 0) {
             console.log(`📡 Telemetry from device ${deviceId}:`, telemetryData);
+
+            resetDeviceOfflineTimer(deviceId, io);
 
             io.to(`device:${deviceId}`).emit("telemetry", {
               deviceId,

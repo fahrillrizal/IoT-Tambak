@@ -29,6 +29,17 @@ export interface TelemetryPayload {
   timestamp: number;
 }
 
+export interface SummaryUpdatePayload {
+  type: "hourly" | "daily" | "weekly";
+  timestamp: number;
+}
+
+export interface DeviceStatusPayload {
+  deviceId: string;
+  isOnline: boolean;
+  timestamp: number;
+}
+
 export function subscribeToDeviceTelemetry(
   deviceId: string,
   callback: (data: TelemetryPayload) => void
@@ -47,9 +58,7 @@ export function subscribeToDeviceTelemetry(
   };
 }
 
-export function subscribeToGlobalTelemetry(
-  callback: (data: TelemetryPayload) => void
-) {
+export function subscribeToGlobalTelemetry(callback: (data: TelemetryPayload) => void) {
   const pusher = getPusherClient();
   const channel = pusher.subscribe("global-telemetry");
 
@@ -63,14 +72,7 @@ export function subscribeToGlobalTelemetry(
   };
 }
 
-export interface SummaryUpdatePayload {
-  type: "hourly" | "daily" | "weekly";
-  timestamp: number;
-}
-
-export function subscribeToSummaryUpdates(
-  callback: (data: SummaryUpdatePayload) => void
-) {
+export function subscribeToSummaryUpdates(callback: (data: SummaryUpdatePayload) => void) {
   const pusher = getPusherClient();
   const channel = pusher.subscribe("global-telemetry");
 
@@ -80,6 +82,37 @@ export function subscribeToSummaryUpdates(
 
   return () => {
     channel.unbind("summary-updated");
+  };
+}
+
+export function subscribeToDeviceStatus(callback: (data: DeviceStatusPayload) => void) {
+  const pusher = getPusherClient();
+  const channel = pusher.subscribe("global-telemetry");
+
+  channel.bind("device-status", (data: DeviceStatusPayload) => {
+    callback(data);
+  });
+
+  return () => {
+    channel.unbind("device-status");
+  };
+}
+
+export function subscribeToSpecificDeviceStatus(
+  deviceId: string,
+  callback: (data: DeviceStatusPayload) => void
+) {
+  const pusher = getPusherClient();
+  const channelName = `device-${deviceId}`;
+  const channel = pusher.subscribe(channelName);
+
+  channel.bind("device-status", (data: DeviceStatusPayload) => {
+    callback(data);
+  });
+
+  return () => {
+    channel.unbind("device-status");
+    pusher.unsubscribe(channelName);
   };
 }
 

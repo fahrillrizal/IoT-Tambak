@@ -316,6 +316,41 @@ export function useDeviceSelection(initialDevice?: string) {
     fetchDevices();
   }, []);
 
+  // Subscribe to real-time device status updates
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let unsubscribe: (() => void) | undefined;
+    const isDev = process.env.NODE_ENV === "development";
+
+    const handleDeviceStatus = (data: { deviceId: string; isOnline: boolean }) => {
+      console.log("📡 Device status update received:", data);
+      setDevices((prevDevices) =>
+        prevDevices.map((device) =>
+          device.thingsboardDeviceId === data.deviceId
+            ? { ...device, isOnline: data.isOnline }
+            : device
+        )
+      );
+    };
+
+    if (isDev) {
+      import("@/lib/socket-client").then(({ subscribeToDeviceStatus }) => {
+        unsubscribe = subscribeToDeviceStatus(handleDeviceStatus);
+      });
+    } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
+      import("@/lib/pusher-client").then(({ subscribeToDeviceStatus }) => {
+        unsubscribe = subscribeToDeviceStatus(handleDeviceStatus);
+      });
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+
   const currentDevice =
     devices.find((d) => d.thingsboardDeviceId === selectedDevice) || devices[0];
   const totalNotifications = devices.reduce(

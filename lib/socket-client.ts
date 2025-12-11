@@ -18,6 +18,12 @@ export interface SummaryUpdatePayload {
   timestamp: number;
 }
 
+export interface DeviceStatusPayload {
+  deviceId: string;
+  isOnline: boolean;
+  timestamp: number;
+}
+
 export function getSocketClient(): Socket {
   if (!socketInstance && typeof window !== "undefined") {
     socketInstance = io({
@@ -136,6 +142,21 @@ export function subscribeToSummaryUpdates(
 
   return () => {
     socket.off("summary:updated");
+  };
+}
+
+export function subscribeToDeviceStatus(
+  callback: (data: DeviceStatusPayload) => void
+) {
+  const socket = getSocketClient();
+
+  socket.on("device:status", (data: DeviceStatusPayload) => {
+    console.log("📡 Device status updated via Socket.IO:", data);
+    callback(data);
+  });
+
+  return () => {
+    socket.off("device:status");
   };
 }
 
