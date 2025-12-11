@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { thingsboardService } from "@/lib/thingsboard";
+
+const OFFLINE_TIMEOUT_MS = 60 * 1000;
 
 export async function GET(request: NextRequest) {
   try {
@@ -54,79 +55,56 @@ export async function GET(request: NextRequest) {
       }))
     );
 
-    const enrichedDevices = await Promise.all(
-      devices.map(async (device) => {
-        let isOnline = false;
+    const now = Date.now();
+    const devicesToMarkOffline: number[] = [];
+    const devicesToMarkOnline: number[] = [];
 
-        if (device.thingsboardDeviceId) {
-          try {
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Timeout")), 3000)
-            );
+    const enrichedDevices = devices.map((device) => {
+      let isOnline = false;
 
-            const telemetryPromise = thingsboardService.getDeviceTelemetry(
-              device.thingsboardDeviceId
-            );
+      if (device.lastHeartbeat) {
+        const lastHeartbeatTime = device.lastHeartbeat.getTime();
+        isOnline = now - lastHeartbeatTime < OFFLINE_TIMEOUT_MS;
+      }
 
-            const telemetry = (await Promise.race([
-              telemetryPromise,
-              timeoutPromise,
-            ])) as Record<string, any[]>;
-
-            if (telemetry && typeof telemetry === "object") {
-              const keys = Object.keys(telemetry);
-              if (keys.length > 0) {
-                const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-                isOnline = keys.some((key) => {
-                  const values = telemetry[key];
-                  if (Array.isArray(values) && values.length > 0) {
-                    const latestTs = values[0]?.ts || 0;
-                    return latestTs > fiveMinutesAgo;
-                  }
-                  return false;
-                });
-              }
-            }
-          } catch (err) {
-            isOnline = false;
-            console.error(
-              `Telemetry fetch failed for device ${device.id}:`,
-              err instanceof Error ? err.message : "Unknown error"
-            );
-          }
+      const desiredStatus = isOnline ? "ACTIVE" : "INACTIVE";
+      if (device.deviceStatus !== desiredStatus) {
+        if (isOnline) {
+          devicesToMarkOnline.push(device.id);
+        } else {
+          devicesToMarkOffline.push(device.id);
         }
+      }
 
-        const desiredStatus = isOnline ? "ACTIVE" : "INACTIVE";
-        if (device.deviceStatus !== desiredStatus) {
-          try {
-            await prisma.device.update({
-              where: { id: device.id },
-              data: { deviceStatus: desiredStatus },
-            });
-          } catch (updateErr) {
-            console.error(
-              `Failed to update device status for ${device.id}:`,
-              updateErr
-            );
-          }
-        }
+      return {
+        id: device.id,
+        name: device.name,
+        deviceId: device.thingsboardDeviceId || "",
+        thingsboardDeviceId: device.thingsboardDeviceId || "",
+        deviceToken: device.deviceToken,
+        deviceType: device.deviceType,
+        isOnline,
+        lastHeartbeat: device.lastHeartbeat?.toISOString() || null,
+        pondId: device.pond.id,
+        pondName: device.pond.name,
+        notifications: 0,
+        createdAt: device.createdAt.toISOString(),
+        updatedAt: device.updatedAt.toISOString(),
+      };
+    });
 
-        return {
-          id: device.id,
-          name: device.name,
-          deviceId: device.thingsboardDeviceId || "",
-          thingsboardDeviceId: device.thingsboardDeviceId || "",
-          deviceToken: device.deviceToken,
-          deviceType: device.deviceType,
-          isOnline,
-          pondId: device.pond.id,
-          pondName: device.pond.name,
-          notifications: 0,
-          createdAt: device.createdAt.toISOString(),
-          updatedAt: device.updatedAt.toISOString(),
-        };
-      })
-    );
+    if (devicesToMarkOffline.length > 0) {
+      await prisma.device.updateMany({
+        where: { id: { in: devicesToMarkOffline } },
+        data: { deviceStatus: "INACTIVE" },
+      });
+    }
+    if (devicesToMarkOnline.length > 0) {
+      await prisma.device.updateMany({
+        where: { id: { in: devicesToMarkOnline } },
+        data: { deviceStatus: "ACTIVE" },
+      });
+    }
 
     const validDevices = enrichedDevices.filter((d) => d.deviceId);
 

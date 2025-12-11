@@ -5,7 +5,10 @@ import { Server } from "socket.io";
 import WebSocket from "ws";
 import dotenv from "dotenv";
 import { startCronJobs } from "./lib/cron-jobs";
-import { triggerTelemetryUpdate, triggerDeviceStatusUpdate } from "./lib/pusher";
+import {
+  triggerTelemetryUpdate,
+  triggerDeviceStatusUpdate,
+} from "./lib/pusher";
 import { prisma } from "./lib/db";
 import axios from "axios";
 
@@ -57,7 +60,6 @@ async function updateDeviceStatus(
   io: Server
 ) {
   try {
-    // Only update deviceStatus, don't change isActive (that's for soft delete)
     await prisma.device.updateMany({
       where: { thingsboardDeviceId: deviceId },
       data: {
@@ -72,7 +74,6 @@ async function updateDeviceStatus(
       timestamp: Date.now(),
     });
 
-    // Also trigger Pusher notification in production
     if (!dev) {
       triggerDeviceStatusUpdate(deviceId, isOnline).catch((err) => {
         console.error("Failed to forward device status to Pusher:", err);
@@ -88,26 +89,22 @@ async function updateDeviceStatus(
 }
 
 function resetDeviceOfflineTimer(deviceId: string, io: Server) {
-  // Clear existing timer
   const existingTimer = deviceOfflineTimers.get(deviceId);
   if (existingTimer) {
     clearTimeout(existingTimer);
   }
 
-  // Check if device was previously considered offline (no recent telemetry)
   const previousLastTelemetry = deviceLastTelemetry.get(deviceId);
-  const wasOffline = !previousLastTelemetry || 
-    (Date.now() - previousLastTelemetry >= DEVICE_OFFLINE_TIMEOUT);
-  
-  // If device was offline (or first time receiving data), mark it as online
+  const wasOffline =
+    !previousLastTelemetry ||
+    Date.now() - previousLastTelemetry >= DEVICE_OFFLINE_TIMEOUT;
+
   if (wasOffline) {
     updateDeviceStatus(deviceId, true, io);
   }
 
-  // Update last telemetry timestamp
   deviceLastTelemetry.set(deviceId, Date.now());
 
-  // Set new timer for offline status
   const timer = setTimeout(() => {
     console.log(
       `⚠️ Device ${deviceId} offline - no data received for ${DEVICE_OFFLINE_TIMEOUT / 1000}s`

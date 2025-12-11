@@ -285,10 +285,14 @@ export function useFeedingSchedule() {
   };
 }
 
+const DEVICE_OFFLINE_TIMEOUT = 60 * 1000;
+
 export function useDeviceSelection(initialDevice?: string) {
   const [devices, setDevices] = useState<SensorDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState(initialDevice || "");
   const [isLoading, setIsLoading] = useState(true);
+
+  const lastTelemetryRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     const fetchDevices = async () => {
@@ -316,14 +320,17 @@ export function useDeviceSelection(initialDevice?: string) {
     fetchDevices();
   }, []);
 
-  // Subscribe to real-time device status updates
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    let unsubscribe: (() => void) | undefined;
+    let unsubscribeStatus: (() => void) | undefined;
+    let unsubscribeTelemetry: (() => void) | undefined;
     const isDev = process.env.NODE_ENV === "development";
 
-    const handleDeviceStatus = (data: { deviceId: string; isOnline: boolean }) => {
+    const handleDeviceStatus = (data: {
+      deviceId: string;
+      isOnline: boolean;
+    }) => {
       console.log("📡 Device status update received:", data);
       setDevices((prevDevices) =>
         prevDevices.map((device) =>
@@ -334,21 +341,72 @@ export function useDeviceSelection(initialDevice?: string) {
       );
     };
 
+    const handleTelemetry = (data: { deviceId: string }) => {
+      const now = Date.now();
+      lastTelemetryRef.current.set(data.deviceId, now);
+
+      setDevices((prevDevices) =>
+        prevDevices.map((device) =>
+          device.thingsboardDeviceId === data.deviceId && !device.isOnline
+            ? { ...device, isOnline: true }
+            : device
+        )
+      );
+    };
+
     if (isDev) {
-      import("@/lib/socket-client").then(({ subscribeToDeviceStatus }) => {
-        unsubscribe = subscribeToDeviceStatus(handleDeviceStatus);
-      });
+      import("@/lib/socket-client").then(
+        ({ subscribeToDeviceStatus, subscribeToGlobalWebSocket }) => {
+          unsubscribeStatus = subscribeToDeviceStatus(handleDeviceStatus);
+          unsubscribeTelemetry = subscribeToGlobalWebSocket(handleTelemetry);
+        }
+      );
     } else if (process.env.NEXT_PUBLIC_PUSHER_KEY) {
-      import("@/lib/pusher-client").then(({ subscribeToDeviceStatus }) => {
-        unsubscribe = subscribeToDeviceStatus(handleDeviceStatus);
-      });
+      import("@/lib/pusher-client").then(
+        ({ subscribeToDeviceStatus, subscribeToGlobalTelemetry }) => {
+          unsubscribeStatus = subscribeToDeviceStatus(handleDeviceStatus);
+          unsubscribeTelemetry = subscribeToGlobalTelemetry(handleTelemetry);
+        }
+      );
     }
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      if (unsubscribeStatus) unsubscribeStatus();
+      if (unsubscribeTelemetry) unsubscribeTelemetry();
     };
+  }, []);
+
+  useEffect(() => {
+    const checkOfflineDevices = () => {
+      const now = Date.now();
+
+      setDevices((prevDevices) =>
+        prevDevices.map((device) => {
+          if (!device.thingsboardDeviceId) return device;
+
+          const lastTime = lastTelemetryRef.current.get(
+            device.thingsboardDeviceId
+          );
+
+          if (
+            lastTime &&
+            now - lastTime >= DEVICE_OFFLINE_TIMEOUT &&
+            device.isOnline
+          ) {
+            console.log(
+              `⚠️ Device ${device.name} marked offline (no data for 1 min)`
+            );
+            return { ...device, isOnline: false };
+          }
+
+          return device;
+        })
+      );
+    };
+
+    const interval = setInterval(checkOfflineDevices, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const currentDevice =

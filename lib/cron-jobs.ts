@@ -12,6 +12,7 @@ export function startCronJobs() {
 
   try {
     console.log('🕐 Initializing cron jobs...');
+
     const dailySummaryCron = cron.schedule('5 0 * * *', async () => {
       console.log('🚀 Starting daily summary cron job at', new Date().toISOString());
       try {
