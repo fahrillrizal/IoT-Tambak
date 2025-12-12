@@ -3,6 +3,20 @@ import { thingsboardService } from "@/lib/thingsboard";
 
 const DAILY_RETENTION_DAYS = 90;
 
+// WIB Timezone helper (UTC+7)
+const WIB_OFFSET_HOURS = 7;
+
+function getWIBDate(date: Date = new Date()): Date {
+  // Convert UTC to WIB by adding 7 hours
+  const wibDate = new Date(date.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
+  return wibDate;
+}
+
+function wibToUTC(wibDate: Date): Date {
+  // Convert WIB back to UTC by subtracting 7 hours
+  return new Date(wibDate.getTime() - WIB_OFFSET_HOURS * 60 * 60 * 1000);
+}
+
 type HourlyAgg = {
   avg: number;
   min: number;
@@ -29,24 +43,25 @@ function maxFrom(items: HourlyAgg[]): number {
 
 export async function saveDailySummaryForYesterday() {
   try {
-    console.log("🕐 Starting daily summary save job...");
+    console.log("🕐 Starting daily summary save job (WIB timezone)...");
 
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-    yesterday.setUTCHours(0, 0, 0, 0);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    // Use WIB timezone (UTC+7)
+    const nowWIB = getWIBDate();
+    const yesterdayWIB = new Date(nowWIB);
+    yesterdayWIB.setDate(yesterdayWIB.getDate() - 1);
+    yesterdayWIB.setHours(0, 0, 0, 0);
+    
+    const yesterdayStr = yesterdayWIB.toISOString().split("T")[0];
     const yesterdayDate = new Date(yesterdayStr);
 
-    const startOfDay = new Date(yesterday);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const endOfDay = new Date(yesterday);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+    // Query hourly summaries for yesterday in WIB (00:00 - 23:59 WIB)
+    const startOfDayWIB = new Date(yesterdayWIB);
+    startOfDayWIB.setHours(0, 0, 0, 0);
+    const endOfDayWIB = new Date(yesterdayWIB);
+    endOfDayWIB.setHours(23, 59, 59, 999);
 
-    console.log(`📊 Daily summary for date: ${yesterdayStr}`);
-    console.log(
-      `   Time range (UTC): ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`
-    );
+    console.log(`📊 Daily summary for: ${yesterdayStr} (WIB)`);
+    console.log(`   Query range: ${startOfDayWIB.toISOString()} to ${endOfDayWIB.toISOString()}`);
 
     const ponds = await prisma.pond.findMany({
       where: {
@@ -72,10 +87,11 @@ export async function saveDailySummaryForYesterday() {
 
     for (const pond of ponds) {
       try {
+        // Query hourly summaries using WIB timestamps
         const hourly = await prisma.hourlySummary.findMany({
           where: {
             pondId: pond.id,
-            timestamp: { gte: startOfDay, lte: endOfDay },
+            timestamp: { gte: startOfDayWIB, lte: endOfDayWIB },
           },
           orderBy: { timestamp: "asc" },
         });
@@ -180,11 +196,15 @@ export async function saveDailySummaryForYesterday() {
 
           for (const device of pond.devices) {
             try {
+              // Convert WIB to UTC for ThingsBoard API
+              const startUTC = wibToUTC(startOfDayWIB);
+              const endUTC = wibToUTC(endOfDayWIB);
+              
               const history = await thingsboardService.getTelemetryHistory(
                 device.thingsboardDeviceId!,
                 keys,
-                startOfDay.getTime(),
-                endOfDay.getTime(),
+                startUTC.getTime(),
+                endUTC.getTime(),
                 2000
               );
 
@@ -280,14 +300,15 @@ export async function saveDailySummaryForYesterday() {
         });
 
         console.log(
-          `✅ Saved daily summary for pond ${pond.id} (${pond.name}) - ${pond.devices.length} devices, ${dataPoints} data points`
+          `✅ Saved daily summary for pond ${pond.id} (${pond.name}) - ${dataPoints} data points for ${yesterdayStr} (WIB)`
         );
 
         try {
+          // Cleanup hourly summaries using WIB timestamps
           const deletedCount = await prisma.hourlySummary.deleteMany({
             where: {
               pondId: pond.id,
-              timestamp: { gte: startOfDay, lte: endOfDay },
+              timestamp: { gte: startOfDayWIB, lte: endOfDayWIB },
             },
           });
           if (deletedCount.count > 0) {
@@ -311,6 +332,178 @@ export async function saveDailySummaryForYesterday() {
     console.log("✨ Daily summary save job completed!");
   } catch (error) {
     console.error("🚨 Daily summary scheduler error:", error);
+  }
+}
+
+// Save partial daily summary for TODAY (updated every 3 hours)
+// This keeps the weekly chart showing current day data
+export async function saveTodayPartialSummary() {
+  try {
+    console.log("📊 Updating today's partial daily summary (WIB)...");
+
+    const nowWIB = getWIBDate();
+    const todayStr = nowWIB.toISOString().split("T")[0];
+    const todayDate = new Date(todayStr);
+
+    // Query hourly summaries for today (00:00 WIB until now)
+    const startOfDayWIB = new Date(nowWIB);
+    startOfDayWIB.setHours(0, 0, 0, 0);
+
+    console.log(`   Today: ${todayStr} (WIB)`);
+    console.log(`   Query from: ${startOfDayWIB.toISOString()} to now`);
+
+    const ponds = await prisma.pond.findMany({
+      where: {
+        devices: {
+          some: {
+            isActive: true,
+            thingsboardDeviceId: { not: null },
+          },
+        },
+      },
+      select: { id: true, name: true },
+    });
+
+    for (const pond of ponds) {
+      try {
+        const hourly = await prisma.hourlySummary.findMany({
+          where: {
+            pondId: pond.id,
+            timestamp: { gte: startOfDayWIB },
+          },
+          orderBy: { timestamp: "asc" },
+        });
+
+        if (hourly.length === 0) {
+          console.log(`   ⏭️ No hourly data for pond ${pond.id} today`);
+          continue;
+        }
+
+        const toAgg = (picker: (h: any) => HourlyAgg) =>
+          hourly.map(picker).filter((x) => x.count > 0);
+
+        const tItems = toAgg((h) => ({
+          avg: Number(h.avgTemperature),
+          min: Number(h.minTemperature),
+          max: Number(h.maxTemperature),
+          count: h.dataPoints,
+        }));
+        const pItems = toAgg((h) => ({
+          avg: Number(h.avgPh),
+          min: Number(h.minPh),
+          max: Number(h.maxPh),
+          count: h.dataPoints,
+        }));
+        const dItems = toAgg((h) => ({
+          avg: Number(h.avgDissolvedOxygen),
+          min: Number(h.minDissolvedOxygen),
+          max: Number(h.maxDissolvedOxygen),
+          count: h.dataPoints,
+        }));
+        const sItems = toAgg((h) => ({
+          avg: Number(h.avgSalinity),
+          min: Number(h.avgSalinity),
+          max: Number(h.avgSalinity),
+          count: h.dataPoints,
+        }));
+        const tbItems = toAgg((h) => ({
+          avg: Number(h.avgTurbidity),
+          min: Number(h.avgTurbidity),
+          max: Number(h.avgTurbidity),
+          count: h.dataPoints,
+        }));
+
+        const tempStats = {
+          avg: weightedAverage(tItems),
+          min: minFrom(tItems),
+          max: maxFrom(tItems),
+          count: tItems.reduce((a, b) => a + b.count, 0),
+        };
+        const phStats = {
+          avg: weightedAverage(pItems),
+          min: minFrom(pItems),
+          max: maxFrom(pItems),
+          count: pItems.reduce((a, b) => a + b.count, 0),
+        };
+        const doStats = {
+          avg: weightedAverage(dItems),
+          min: minFrom(dItems),
+          max: maxFrom(dItems),
+          count: dItems.reduce((a, b) => a + b.count, 0),
+        };
+        const salStats = {
+          avg: weightedAverage(sItems),
+          min: minFrom(sItems),
+          max: maxFrom(sItems),
+          count: sItems.reduce((a, b) => a + b.count, 0),
+        };
+        const turbStats = {
+          avg: weightedAverage(tbItems),
+          min: minFrom(tbItems),
+          max: maxFrom(tbItems),
+          count: tbItems.reduce((a, b) => a + b.count, 0),
+        };
+
+        const dataPoints = tempStats.count;
+
+        await prisma.dailySummary.upsert({
+          where: {
+            pondId_date: {
+              pondId: pond.id,
+              date: todayDate,
+            },
+          },
+          create: {
+            pondId: pond.id,
+            date: todayDate,
+            avgTemperature: tempStats.avg,
+            minTemperature: tempStats.min,
+            maxTemperature: tempStats.max,
+            avgPh: phStats.avg,
+            minPh: phStats.min,
+            maxPh: phStats.max,
+            avgDissolvedOxygen: doStats.avg,
+            minDissolvedOxygen: doStats.min,
+            maxDissolvedOxygen: doStats.max,
+            avgSalinity: salStats.avg,
+            minSalinity: salStats.min,
+            maxSalinity: salStats.max,
+            avgTurbidity: turbStats.avg,
+            minTurbidity: turbStats.min,
+            maxTurbidity: turbStats.max,
+            dataPoints,
+          },
+          update: {
+            avgTemperature: tempStats.avg,
+            minTemperature: tempStats.min,
+            maxTemperature: tempStats.max,
+            avgPh: phStats.avg,
+            minPh: phStats.min,
+            maxPh: phStats.max,
+            avgDissolvedOxygen: doStats.avg,
+            minDissolvedOxygen: doStats.min,
+            maxDissolvedOxygen: doStats.max,
+            avgSalinity: salStats.avg,
+            minSalinity: salStats.min,
+            maxSalinity: salStats.max,
+            avgTurbidity: turbStats.avg,
+            minTurbidity: turbStats.min,
+            maxTurbidity: turbStats.max,
+            dataPoints,
+          },
+        });
+
+        console.log(
+          `   ✅ Updated today's summary for pond ${pond.id} (${pond.name}) - ${hourly.length} hours, ${dataPoints} points`
+        );
+      } catch (error) {
+        console.error(`   ❌ Error updating pond ${pond.id}:`, error);
+      }
+    }
+
+    console.log("✨ Today's partial summary updated!");
+  } catch (error) {
+    console.error("🚨 Today's partial summary error:", error);
   }
 }
 

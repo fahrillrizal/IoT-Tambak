@@ -6,6 +6,20 @@ const KEYS = ['temperature', 'ph', 'dissolvedOxygen', 'salinity', 'turbidity'] a
 // Retention period: Hapus hourly data setelah 7 hari (sudah di-aggregate ke daily)
 const HOURLY_RETENTION_DAYS = 7;
 
+// WIB Timezone helper (UTC+7)
+const WIB_OFFSET_HOURS = 7;
+
+function getWIBDate(date: Date = new Date()): Date {
+  // Convert UTC to WIB by adding 7 hours
+  const wibDate = new Date(date.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
+  return wibDate;
+}
+
+function wibToUTC(wibDate: Date): Date {
+  // Convert WIB back to UTC by subtracting 7 hours
+  return new Date(wibDate.getTime() - WIB_OFFSET_HOURS * 60 * 60 * 1000);
+}
+
 function calcStats(values: number[]) {
   if (!values.length) return { avg: 0, min: 0, max: 0, count: 0 };
   const sum = values.reduce((a, b) => a + b, 0);
@@ -44,16 +58,22 @@ export async function cleanupOldHourlySummaries() {
 }
 
 export async function saveHourlySummaryForLastHour() {
-  const now = new Date();
-  const start = new Date(now);
-  start.setMinutes(0, 0, 0);
-  start.setHours(start.getHours() - 1);
+  // Use WIB timezone (UTC+7)
+  const nowWIB = getWIBDate();
+  const startWIB = new Date(nowWIB);
+  startWIB.setMinutes(0, 0, 0);
+  startWIB.setHours(startWIB.getHours() - 1);
 
-  const end = new Date(start);
-  end.setMinutes(59, 59, 999);
+  const endWIB = new Date(startWIB);
+  endWIB.setMinutes(59, 59, 999);
 
-  const windowLabel = `${start.toISOString()} - ${end.toISOString()}`;
-  console.log(`🕐 Hourly summary window: ${windowLabel}`);
+  // Convert to UTC for ThingsBoard API query
+  const startUTC = wibToUTC(startWIB);
+  const endUTC = wibToUTC(endWIB);
+
+  const wibHour = startWIB.getHours().toString().padStart(2, '0');
+  console.log(`🕐 Hourly summary for ${startWIB.toISOString().split('T')[0]} jam ${wibHour}:00 WIB`);
+  console.log(`   ThingsBoard query: ${startUTC.toISOString()} - ${endUTC.toISOString()}`);
 
   // Get all active ponds with their devices
   const ponds = await prisma.pond.findMany({
@@ -81,8 +101,8 @@ export async function saveHourlySummaryForLastHour() {
           const history = await thingsboardService.getTelemetryHistory(
             device.thingsboardDeviceId!,
             KEYS as unknown as string[],
-            start.getTime(),
-            end.getTime(),
+            startUTC.getTime(),
+            endUTC.getTime(),
             2000
           );
 
@@ -121,11 +141,12 @@ export async function saveHourlySummaryForLastHour() {
         continue;
       }
 
+      // Store timestamp in WIB for easier reading
       await prisma.hourlySummary.upsert({
-        where: { pondId_timestamp: { pondId: pond.id, timestamp: start } },
+        where: { pondId_timestamp: { pondId: pond.id, timestamp: startWIB } },
         create: {
           pondId: pond.id,
-          timestamp: start,
+          timestamp: startWIB,
           avgTemperature: temp.avg,
           minTemperature: temp.min,
           maxTemperature: temp.max,
@@ -155,7 +176,7 @@ export async function saveHourlySummaryForLastHour() {
         },
       });
 
-      console.log(`✅ Hourly summary saved for pond ${pond.id} (${pond.name}) - ${pond.devices.length} devices, ${temp.count} data points`);
+      console.log(`✅ Saved: pond ${pond.id} (${pond.name}) jam ${wibHour}:00 WIB - ${temp.count} data points`);
     } catch (error) {
       console.error(`❌ Hourly summary failed for pond ${pond.id}:`, error);
     }

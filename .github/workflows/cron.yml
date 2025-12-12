@@ -2,10 +2,10 @@ name: Cron Jobs - Hourly & Daily Summary
 
 on:
   schedule:
-    # Hourly - every hour at minute 5
+    # Hourly - every hour at minute 5 (UTC, same for WIB)
     - cron: '5 * * * *'
-    # Daily - every day at 00:05 UTC
-    - cron: '5 0 * * *'
+    # Daily - at 17:05 UTC = 00:05 WIB (next day)
+    - cron: '5 17 * * *'
 
 jobs:
   cron-tasks:
@@ -17,9 +17,9 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"
 
-      - name: Trigger daily summary (if hour is 0)
+      - name: Trigger daily summary (at 00:05 WIB / 17:05 UTC)
         run: |
-          if [ $(date -u +%H) -eq 0 ]; then
+          if [ $(date -u +%H) -eq 17 ]; then
             curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/daily-summary \
               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
               -H "Content-Type: application/json"
