@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
+import { DevicesSkeleton } from "@/components/skeletons/DevicesSkeleton";
 import {
   AlertCircle,
   Loader2,
@@ -190,6 +191,15 @@ export default function DevicesPageClient({
 
   const selectedDevice = devices.find((d) => d.id === selectedDeviceId);
   const selectedTbId = selectedDevice?.thingsboardDeviceId || selectedDevice?.deviceId || "";
+
+  // Loading state - show skeleton when initial data is loading
+  if (loading && devices.length === 0) {
+    return (
+      <DashboardLayout activeMenu="devices" defaultCollapsed={defaultCollapsed}>
+        <DevicesSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout activeMenu="devices" defaultCollapsed={defaultCollapsed}>

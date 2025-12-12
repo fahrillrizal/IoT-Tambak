@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ClaimSkeleton } from "@/components/skeletons/ClaimSkeleton";
 import { AlertCircle, CheckCircle2, Loader2, QrCode } from "lucide-react";
 
 interface Pond {
@@ -143,6 +144,10 @@ function ClaimDevicePageInner() {
     }
   };
 
+  if (loading) {
+    return <ClaimSkeleton />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
       <Card className="w-full max-w-xl shadow-lg border border-gray-200">
@@ -156,14 +161,7 @@ function ClaimDevicePageInner() {
           <QrCode className="h-6 w-6 text-gray-400" />
         </CardHeader>
         <CardContent className="space-y-4">
-          {loading && (
-            <div className="flex items-center gap-2 text-gray-600">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Memuat data device...
-            </div>
-          )}
-
-          {!loading && error && (
+          {error && (
             <div className="space-y-4">
               <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 p-4 rounded">
                 <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
@@ -185,7 +183,7 @@ function ClaimDevicePageInner() {
             </div>
           )}
 
-          {!loading && !error && device && (
+          {!error && device && (
             <>
               <div className="bg-blue-50 border border-blue-100 p-3 rounded text-sm">
                 <p className="text-blue-900 font-semibold">{device.name}</p>
@@ -290,21 +288,7 @@ function ClaimDevicePageInner() {
 
 export default function ClaimDevicePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
-          <Card className="w-full max-w-xl shadow-lg border border-gray-200">
-            <CardHeader>
-              <CardTitle className="text-xl">Memuat halaman klaim...</CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center gap-2 text-gray-600">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Mengambil data QR
-            </CardContent>
-          </Card>
-        </div>
-      }
-    >
+    <Suspense fallback={<ClaimSkeleton />}>
       <ClaimDevicePageInner />
     </Suspense>
   );
