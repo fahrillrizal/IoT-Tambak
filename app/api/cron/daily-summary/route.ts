@@ -4,13 +4,17 @@ import { pusher } from "@/lib/pusher";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
+// Called by GitHub Actions daily at 00:05 UTC
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
 
     if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+      console.log("❌ Unauthorized cron request");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    console.log(`📊 Daily cron triggered at ${new Date().toISOString()} via GitHub Actions`);
 
     await saveDailySummaryForYesterday();
 
@@ -23,6 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Daily summary saved successfully",
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Cron job error:", error);

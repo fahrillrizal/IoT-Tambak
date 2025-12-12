@@ -104,9 +104,20 @@ export async function saveHourlySummaryForLastHour() {
       const dox = calcStats(allBuckets.dissolvedOxygen);
       const sal = calcStats(allBuckets.salinity);
       const turb = calcStats(allBuckets.turbidity);
-
+      
       if (temp.count === 0) {
         console.log(`⏭️ No data for pond ${pond.id} (${pond.name}), skipping...`);
+        continue;
+      }
+
+      const allZero = 
+        temp.avg === 0 && temp.min === 0 && temp.max === 0 &&
+        ph.avg === 0 && ph.min === 0 && ph.max === 0 &&
+        dox.avg === 0 && dox.min === 0 && dox.max === 0 &&
+        sal.avg === 0;
+
+      if (allZero) {
+        console.log(`⏭️ All zero values for pond ${pond.id} (${pond.name}), skipping to save storage...`);
         continue;
       }
 
