@@ -1,22 +1,24 @@
-import { prisma } from '@/lib/db';
-import { thingsboardService } from '@/lib/thingsboard';
+import { prisma } from "@/lib/db";
+import { thingsboardService } from "@/lib/thingsboard";
 
-const KEYS = ['temperature', 'ph', 'dissolvedOxygen', 'salinity', 'turbidity'] as const;
+const KEYS = [
+  "temperature",
+  "ph",
+  "dissolvedOxygen",
+  "salinity",
+  "turbidity",
+] as const;
 
-// Retention period: Hapus hourly data setelah 7 hari (sudah di-aggregate ke daily)
 const HOURLY_RETENTION_DAYS = 7;
 
-// WIB Timezone helper (UTC+7)
 const WIB_OFFSET_HOURS = 7;
 
 function getWIBDate(date: Date = new Date()): Date {
-  // Convert UTC to WIB by adding 7 hours
   const wibDate = new Date(date.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
   return wibDate;
 }
 
 function wibToUTC(wibDate: Date): Date {
-  // Convert WIB back to UTC by subtracting 7 hours
   return new Date(wibDate.getTime() - WIB_OFFSET_HOURS * 60 * 60 * 1000);
 }
 
@@ -31,7 +33,6 @@ function calcStats(values: number[]) {
   };
 }
 
-// Cleanup hourly summaries older than retention period
 export async function cleanupOldHourlySummaries() {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - HOURLY_RETENTION_DAYS);
@@ -47,18 +48,25 @@ export async function cleanupOldHourlySummaries() {
     });
 
     if (result.count > 0) {
-      console.log(`🗑️ Cleaned up ${result.count} hourly summaries older than ${HOURLY_RETENTION_DAYS} days`);
+      console.log(
+        `🗑️ Cleaned up ${result.count} hourly summaries older than ${HOURLY_RETENTION_DAYS} days`
+      );
     }
 
     return result.count;
   } catch (error) {
-    console.error('Failed to cleanup hourly summaries:', error);
+    console.error("Failed to cleanup hourly summaries:", error);
     return 0;
   }
 }
 
-export async function saveHourlySummaryForLastHour() {
-  // Use WIB timezone (UTC+7)
+export async function saveHourlySummaryForLastHour(): Promise<{
+  saved: number;
+  skipped: number;
+}> {
+  let saved = 0;
+  let skipped = 0;
+
   const nowWIB = getWIBDate();
   const startWIB = new Date(nowWIB);
   startWIB.setMinutes(0, 0, 0);
@@ -67,15 +75,17 @@ export async function saveHourlySummaryForLastHour() {
   const endWIB = new Date(startWIB);
   endWIB.setMinutes(59, 59, 999);
 
-  // Convert to UTC for ThingsBoard API query
   const startUTC = wibToUTC(startWIB);
   const endUTC = wibToUTC(endWIB);
 
-  const wibHour = startWIB.getHours().toString().padStart(2, '0');
-  console.log(`🕐 Hourly summary for ${startWIB.toISOString().split('T')[0]} jam ${wibHour}:00 WIB`);
-  console.log(`   ThingsBoard query: ${startUTC.toISOString()} - ${endUTC.toISOString()}`);
+  const wibHour = startWIB.getHours().toString().padStart(2, "0");
+  console.log(
+    `🕐 Hourly summary for ${startWIB.toISOString().split("T")[0]} jam ${wibHour}:00 WIB`
+  );
+  console.log(
+    `   ThingsBoard query: ${startUTC.toISOString()} - ${endUTC.toISOString()}`
+  );
 
-  // Get all active ponds with their devices
   const ponds = await prisma.pond.findMany({
     where: { isActive: true },
     select: {
@@ -92,7 +102,6 @@ export async function saveHourlySummaryForLastHour() {
     if (pond.devices.length === 0) continue;
 
     try {
-      // Aggregate data from ALL devices in this pond
       const allBuckets: Record<string, number[]> = {};
       KEYS.forEach((k) => (allBuckets[k] = []));
 
@@ -114,34 +123,47 @@ export async function saveHourlySummaryForLastHour() {
             }
           }
         } catch (deviceError) {
-          console.warn(`⚠️ Failed to fetch telemetry for device ${device.thingsboardDeviceId}:`, deviceError);
+          console.warn(
+            `⚠️ Failed to fetch telemetry for device ${device.thingsboardDeviceId}:`,
+            deviceError
+          );
         }
       }
 
-      // Calculate stats from combined data of all devices
       const temp = calcStats(allBuckets.temperature);
       const ph = calcStats(allBuckets.ph);
       const dox = calcStats(allBuckets.dissolvedOxygen);
       const sal = calcStats(allBuckets.salinity);
       const turb = calcStats(allBuckets.turbidity);
-      
+
       if (temp.count === 0) {
-        console.log(`⏭️ No data for pond ${pond.id} (${pond.name}), skipping...`);
+        console.log(
+          `⏭️ No data for pond ${pond.id} (${pond.name}), skipping...`
+        );
+        skipped++;
         continue;
       }
 
-      const allZero = 
-        temp.avg === 0 && temp.min === 0 && temp.max === 0 &&
-        ph.avg === 0 && ph.min === 0 && ph.max === 0 &&
-        dox.avg === 0 && dox.min === 0 && dox.max === 0 &&
+      const allZero =
+        temp.avg === 0 &&
+        temp.min === 0 &&
+        temp.max === 0 &&
+        ph.avg === 0 &&
+        ph.min === 0 &&
+        ph.max === 0 &&
+        dox.avg === 0 &&
+        dox.min === 0 &&
+        dox.max === 0 &&
         sal.avg === 0;
 
       if (allZero) {
-        console.log(`⏭️ All zero values for pond ${pond.id} (${pond.name}), skipping to save storage...`);
+        console.log(
+          `⏭️ All zero values for pond ${pond.id} (${pond.name}), skipping to save storage...`
+        );
+        skipped++;
         continue;
       }
 
-      // Store timestamp in WIB for easier reading
       await prisma.hourlySummary.upsert({
         where: { pondId_timestamp: { pondId: pond.id, timestamp: startWIB } },
         create: {
@@ -176,9 +198,16 @@ export async function saveHourlySummaryForLastHour() {
         },
       });
 
-      console.log(`✅ Saved: pond ${pond.id} (${pond.name}) jam ${wibHour}:00 WIB - ${temp.count} data points`);
+      console.log(
+        `✅ Saved: pond ${pond.id} (${pond.name}) jam ${wibHour}:00 WIB - ${temp.count} data points`
+      );
+      saved++;
     } catch (error) {
       console.error(`❌ Hourly summary failed for pond ${pond.id}:`, error);
+      skipped++;
     }
   }
+
+  console.log(`📊 Hourly summary complete: ${saved} saved, ${skipped} skipped`);
+  return { saved, skipped };
 }

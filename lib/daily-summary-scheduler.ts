@@ -3,17 +3,14 @@ import { thingsboardService } from "@/lib/thingsboard";
 
 const DAILY_RETENTION_DAYS = 90;
 
-// WIB Timezone helper (UTC+7)
 const WIB_OFFSET_HOURS = 7;
 
 function getWIBDate(date: Date = new Date()): Date {
-  // Convert UTC to WIB by adding 7 hours
   const wibDate = new Date(date.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
   return wibDate;
 }
 
 function wibToUTC(wibDate: Date): Date {
-  // Convert WIB back to UTC by subtracting 7 hours
   return new Date(wibDate.getTime() - WIB_OFFSET_HOURS * 60 * 60 * 1000);
 }
 
@@ -41,27 +38,33 @@ function maxFrom(items: HourlyAgg[]): number {
   return Math.max(...items.map((it) => it.max));
 }
 
-export async function saveDailySummaryForYesterday() {
+export async function saveDailySummaryForYesterday(): Promise<{
+  saved: number;
+  skipped: number;
+}> {
+  let saved = 0;
+  let skipped = 0;
+
   try {
     console.log("🕐 Starting daily summary save job (WIB timezone)...");
 
-    // Use WIB timezone (UTC+7)
     const nowWIB = getWIBDate();
     const yesterdayWIB = new Date(nowWIB);
     yesterdayWIB.setDate(yesterdayWIB.getDate() - 1);
     yesterdayWIB.setHours(0, 0, 0, 0);
-    
+
     const yesterdayStr = yesterdayWIB.toISOString().split("T")[0];
     const yesterdayDate = new Date(yesterdayStr);
 
-    // Query hourly summaries for yesterday in WIB (00:00 - 23:59 WIB)
     const startOfDayWIB = new Date(yesterdayWIB);
     startOfDayWIB.setHours(0, 0, 0, 0);
     const endOfDayWIB = new Date(yesterdayWIB);
     endOfDayWIB.setHours(23, 59, 59, 999);
 
     console.log(`📊 Daily summary for: ${yesterdayStr} (WIB)`);
-    console.log(`   Query range: ${startOfDayWIB.toISOString()} to ${endOfDayWIB.toISOString()}`);
+    console.log(
+      `   Query range: ${startOfDayWIB.toISOString()} to ${endOfDayWIB.toISOString()}`
+    );
 
     const ponds = await prisma.pond.findMany({
       where: {
@@ -87,7 +90,6 @@ export async function saveDailySummaryForYesterday() {
 
     for (const pond of ponds) {
       try {
-        // Query hourly summaries using WIB timestamps
         const hourly = await prisma.hourlySummary.findMany({
           where: {
             pondId: pond.id,
@@ -196,10 +198,9 @@ export async function saveDailySummaryForYesterday() {
 
           for (const device of pond.devices) {
             try {
-              // Convert WIB to UTC for ThingsBoard API
               const startUTC = wibToUTC(startOfDayWIB);
               const endUTC = wibToUTC(endOfDayWIB);
-              
+
               const history = await thingsboardService.getTelemetryHistory(
                 device.thingsboardDeviceId!,
                 keys,
@@ -249,6 +250,29 @@ export async function saveDailySummaryForYesterday() {
 
         if (dataPoints === 0) {
           console.log(`   ⏭️ Skipping pond ${pond.id} - no data points`);
+          skipped++;
+          continue;
+        }
+
+        const allZero =
+          tempStats.avg === 0 &&
+          tempStats.min === 0 &&
+          tempStats.max === 0 &&
+          phStats.avg === 0 &&
+          phStats.min === 0 &&
+          phStats.max === 0 &&
+          doStats.avg === 0 &&
+          doStats.min === 0 &&
+          doStats.max === 0 &&
+          salStats.avg === 0 &&
+          salStats.min === 0 &&
+          salStats.max === 0;
+
+        if (allZero) {
+          console.log(
+            `   ⏭️ All zero values for pond ${pond.id} (${pond.name}), skipping to save storage...`
+          );
+          skipped++;
           continue;
         }
 
@@ -302,9 +326,9 @@ export async function saveDailySummaryForYesterday() {
         console.log(
           `✅ Saved daily summary for pond ${pond.id} (${pond.name}) - ${dataPoints} data points for ${yesterdayStr} (WIB)`
         );
+        saved++;
 
         try {
-          // Cleanup hourly summaries using WIB timestamps
           const deletedCount = await prisma.hourlySummary.deleteMany({
             where: {
               pondId: pond.id,
@@ -324,20 +348,29 @@ export async function saveDailySummaryForYesterday() {
         }
       } catch (error) {
         console.error(`❌ Error processing pond ${pond.id}:`, error);
+        skipped++;
       }
     }
 
     await cleanupOldDailySummaries();
 
-    console.log("✨ Daily summary save job completed!");
+    console.log(
+      `✨ Daily summary complete: ${saved} saved, ${skipped} skipped`
+    );
+    return { saved, skipped };
   } catch (error) {
     console.error("🚨 Daily summary scheduler error:", error);
+    return { saved: 0, skipped: 0 };
   }
 }
 
-// Save partial daily summary for TODAY (updated every 3 hours)
-// This keeps the weekly chart showing current day data
-export async function saveTodayPartialSummary() {
+export async function saveTodayPartialSummary(): Promise<{
+  saved: number;
+  skipped: number;
+}> {
+  let saved = 0;
+  let skipped = 0;
+
   try {
     console.log("📊 Updating today's partial daily summary (WIB)...");
 
@@ -345,7 +378,6 @@ export async function saveTodayPartialSummary() {
     const todayStr = nowWIB.toISOString().split("T")[0];
     const todayDate = new Date(todayStr);
 
-    // Query hourly summaries for today (00:00 WIB until now)
     const startOfDayWIB = new Date(nowWIB);
     startOfDayWIB.setHours(0, 0, 0, 0);
 
@@ -376,6 +408,7 @@ export async function saveTodayPartialSummary() {
 
         if (hourly.length === 0) {
           console.log(`   ⏭️ No hourly data for pond ${pond.id} today`);
+          skipped++;
           continue;
         }
 
@@ -446,6 +479,28 @@ export async function saveTodayPartialSummary() {
 
         const dataPoints = tempStats.count;
 
+        const allZero =
+          tempStats.avg === 0 &&
+          tempStats.min === 0 &&
+          tempStats.max === 0 &&
+          phStats.avg === 0 &&
+          phStats.min === 0 &&
+          phStats.max === 0 &&
+          doStats.avg === 0 &&
+          doStats.min === 0 &&
+          doStats.max === 0 &&
+          salStats.avg === 0 &&
+          salStats.min === 0 &&
+          salStats.max === 0;
+
+        if (allZero) {
+          console.log(
+            `   ⏭️ All zero values for pond ${pond.id} (${pond.name}), skipping...`
+          );
+          skipped++;
+          continue;
+        }
+
         await prisma.dailySummary.upsert({
           where: {
             pondId_date: {
@@ -496,14 +551,20 @@ export async function saveTodayPartialSummary() {
         console.log(
           `   ✅ Updated today's summary for pond ${pond.id} (${pond.name}) - ${hourly.length} hours, ${dataPoints} points`
         );
+        saved++;
       } catch (error) {
         console.error(`   ❌ Error updating pond ${pond.id}:`, error);
+        skipped++;
       }
     }
 
-    console.log("✨ Today's partial summary updated!");
+    console.log(
+      `✨ Today's partial summary complete: ${saved} saved, ${skipped} skipped`
+    );
+    return { saved, skipped };
   } catch (error) {
     console.error("🚨 Today's partial summary error:", error);
+    return { saved: 0, skipped: 0 };
   }
 }
 

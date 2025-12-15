@@ -11,13 +11,29 @@ jobs:
   cron-tasks:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger hourly summary
+      - name: Check if there is new data
+        id: check
+        run: |
+          RESPONSE=$(curl -s -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/check-data \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "Response: $RESPONSE"
+          HAS_DATA=$(echo $RESPONSE | jq -r '.hasData')
+          echo "hasData=$HAS_DATA" >> $GITHUB_OUTPUT
+          
+      - name: Trigger hourly summary (only if data exists)
+        if: steps.check.outputs.hasData == 'true'
         run: |
           curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/hourly-summary \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"
 
+      - name: Skip notification (if no data)
+        if: steps.check.outputs.hasData != 'true'
+        run: echo "⏭️ Skipped - no new data available"
+
       - name: Trigger daily summary (at 00:05 WIB / 17:05 UTC)
+        if: steps.check.outputs.hasData == 'true'
         run: |
           if [ $(date -u +%H) -eq 17 ]; then
             curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/daily-summary \

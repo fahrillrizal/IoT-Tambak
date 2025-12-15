@@ -4,7 +4,6 @@ import { pusher } from "@/lib/pusher";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
-// Called by GitHub Actions daily at 00:05 UTC
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -14,19 +13,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log(`📊 Daily cron triggered at ${new Date().toISOString()} via GitHub Actions`);
+    console.log(
+      `📊 Daily cron triggered at ${new Date().toISOString()} via GitHub Actions`
+    );
 
-    await saveDailySummaryForYesterday();
+    const result = await saveDailySummaryForYesterday();
 
-    // Notify clients that daily summary is updated
-    await pusher.trigger("global-telemetry", "summary-updated", {
-      type: "daily",
-      timestamp: Date.now(),
-    });
+    if (result.saved > 0) {
+      await pusher.trigger("global-telemetry", "summary-updated", {
+        type: "daily",
+        timestamp: Date.now(),
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Daily summary saved successfully",
+      message:
+        result.saved > 0
+          ? "Daily summary saved successfully"
+          : "No data to save (all zero or no data)",
+      result,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

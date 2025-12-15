@@ -3,19 +3,20 @@ import {
   saveHourlySummaryForLastHour,
   cleanupOldHourlySummaries,
 } from "@/lib/hourly-summary-scheduler";
-import { saveDailySummaryForYesterday, saveTodayPartialSummary } from "@/lib/daily-summary-scheduler";
+import {
+  saveDailySummaryForYesterday,
+  saveTodayPartialSummary,
+} from "@/lib/daily-summary-scheduler";
 import { pusher } from "@/lib/pusher";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
-// WIB offset for calculating current WIB hour
 const WIB_OFFSET_HOURS = 7;
 
-// Called by GitHub Actions every hour
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
-    
+
     if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
       console.log("❌ Unauthorized cron request");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,44 +24,62 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     const wibHour = (now.getUTCHours() + WIB_OFFSET_HOURS) % 24;
-    
-    console.log(`🕐 Hourly cron triggered at ${now.toISOString()} (${wibHour}:00 WIB)`);
 
-    await saveHourlySummaryForLastHour();
+    console.log(
+      `🕐 Hourly cron triggered at ${now.toISOString()} (${wibHour}:00 WIB)`
+    );
+
+    const hourlyResult = await saveHourlySummaryForLastHour();
 
     await cleanupOldHourlySummaries();
 
-    await pusher.trigger("global-telemetry", "summary-updated", {
-      type: "hourly",
-      timestamp: Date.now(),
-    });
-
-    // Update today's partial daily summary every 3 hours (WIB: 00, 03, 06, 09, 12, 15, 18, 21)
-    if (wibHour % 3 === 0) {
-      console.log(`📊 Every 3 hours (${wibHour}:00 WIB) - updating today's partial summary`);
-      await saveTodayPartialSummary();
-
+    if (hourlyResult.saved > 0) {
       await pusher.trigger("global-telemetry", "summary-updated", {
-        type: "daily",
+        type: "hourly",
         timestamp: Date.now(),
       });
     }
 
-    // Also trigger yesterday's final daily summary at midnight WIB (17:00 UTC)
-    if (now.getUTCHours() === 17) {
-      console.log("🌙 Midnight WIB (17:00 UTC) - saving yesterday's final summary");
-      await saveDailySummaryForYesterday();
+    let todayResult = { saved: 0, skipped: 0 };
+    if (wibHour % 3 === 0) {
+      console.log(
+        `📊 Every 3 hours (${wibHour}:00 WIB) - updating today's partial summary`
+      );
+      todayResult = await saveTodayPartialSummary();
 
-      await pusher.trigger("global-telemetry", "summary-updated", {
-        type: "daily",
-        timestamp: Date.now(),
-      });
+      if (todayResult.saved > 0) {
+        await pusher.trigger("global-telemetry", "summary-updated", {
+          type: "daily",
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    let yesterdayResult = { saved: 0, skipped: 0 };
+    if (now.getUTCHours() === 17) {
+      console.log(
+        "🌙 Midnight WIB (17:00 UTC) - saving yesterday's final summary"
+      );
+      yesterdayResult = await saveDailySummaryForYesterday();
+
+      if (yesterdayResult.saved > 0) {
+        await pusher.trigger("global-telemetry", "summary-updated", {
+          type: "daily",
+          timestamp: Date.now(),
+        });
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: "Hourly summary saved successfully",
+      message:
+        hourlyResult.saved > 0
+          ? "Data saved successfully"
+          : "No data to save (all zero or no data)",
       wibHour: `${wibHour}:00 WIB`,
+      hourly: hourlyResult,
+      today: todayResult,
+      yesterday: yesterdayResult,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
