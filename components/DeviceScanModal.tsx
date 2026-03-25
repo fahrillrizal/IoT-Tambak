@@ -103,8 +103,8 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
         }
       }
 
-      if (data.startsWith("tascaid://")) {
-        const url = new URL(data.replace("tascaid://", "https://placeholder/"));
+      if (data.startsWith("hehehe://")) {
+        const url = new URL(data.replace("hehehe://", "https://placeholder/"));
         const deviceId =
           url.searchParams.get("deviceId") || url.searchParams.get("id");
         if (deviceId) return deviceId;
