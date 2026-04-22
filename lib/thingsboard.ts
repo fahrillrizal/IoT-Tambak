@@ -118,7 +118,7 @@ class ThingsBoardService {
           requestData: data,
         });
         throw new Error(
-          `ThingsBoard API Error: ${error.response?.data?.message || error.message}`
+          `ThingsBoard API Error: ${error.response?.data?.message || error.message}`,
         );
       }
       throw error;
@@ -134,7 +134,7 @@ class ThingsBoardService {
   }
 
   async getOrCreateDeviceProfile(
-    profileName: string = "IoT Tambak Sensor"
+    profileName: string = "IoT Tambak Sensor",
   ): Promise<string> {
     if (this.defaultDeviceProfileId) {
       return this.defaultDeviceProfileId;
@@ -142,11 +142,11 @@ class ThingsBoardService {
 
     try {
       const profiles = await this.get<{ data: TBDeviceProfile[] }>(
-        "/api/deviceProfiles?pageSize=100&page=0"
+        "/api/deviceProfiles?pageSize=100&page=0",
       );
 
       const existingProfile = profiles.data.find(
-        (p) => p.name === profileName || p.default
+        (p) => p.name === profileName || p.default,
       );
 
       if (existingProfile) {
@@ -170,7 +170,7 @@ class ThingsBoardService {
               type: "DEFAULT",
             },
           },
-        }
+        },
       );
 
       this.defaultDeviceProfileId = newProfile.id.id;
@@ -184,7 +184,7 @@ class ThingsBoardService {
   async createDevice(
     name: string,
     type: string = "default",
-    label?: string
+    label?: string,
   ): Promise<TBDeviceResponse> {
     const deviceProfileId = await this.getOrCreateDeviceProfile();
 
@@ -200,7 +200,7 @@ class ThingsBoardService {
 
     console.log(
       "Creating device with data:",
-      JSON.stringify(deviceData, null, 2)
+      JSON.stringify(deviceData, null, 2),
     );
 
     return this.post<TBDeviceResponse>("/api/device", deviceData);
@@ -222,7 +222,7 @@ class ThingsBoardService {
   async findDeviceByName(deviceName: string): Promise<TBDeviceResponse | null> {
     try {
       const devices = await this.get<{ data: TBDeviceResponse[] }>(
-        `/api/tenant/devices?pageSize=100&page=0&textSearch=${encodeURIComponent(deviceName)}`
+        `/api/tenant/devices?pageSize=100&page=0&textSearch=${encodeURIComponent(deviceName)}`,
       );
 
       return devices.data.find((d) => d.name === deviceName) || null;
@@ -235,7 +235,7 @@ class ThingsBoardService {
   async getDeviceTelemetry(deviceId: string, keys?: string[]) {
     const keysParam = keys ? `?keys=${keys.join(",")}` : "";
     return this.get(
-      `/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries${keysParam}`
+      `/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries${keysParam}`,
     );
   }
 
@@ -244,7 +244,7 @@ class ThingsBoardService {
     keys: string[],
     startTs: number,
     endTs: number,
-    limit = 100
+    limit = 100,
   ) {
     const params = new URLSearchParams({
       keys: keys.join(","),
@@ -253,7 +253,7 @@ class ThingsBoardService {
       limit: limit.toString(),
     });
     return this.get(
-      `/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries?${params}`
+      `/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries?${params}`,
     );
   }
 
@@ -263,7 +263,7 @@ class ThingsBoardService {
       status?: "ACTIVE" | "CLEARED" | "ACK";
       severity?: "CRITICAL" | "WARNING" | "MAJOR" | "MINOR";
       limit?: number;
-    }
+    },
   ) {
     const params = new URLSearchParams();
     params.append("pageSize", (options?.limit || 10).toString());
@@ -286,12 +286,23 @@ class ThingsBoardService {
     deviceId: string,
     method: string,
     params: any,
-    timeout = 5000
+    timeout = 5000,
   ) {
     return this.post(`/api/plugins/rpc/twoway/${deviceId}`, {
       method,
       params,
       timeout,
+    });
+  }
+
+  async sendRPCOneway(
+    deviceId: string,
+    method: string,
+    params: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.post(`/api/plugins/rpc/oneway/${deviceId}`, {
+      method,
+      params,
     });
   }
 
@@ -306,17 +317,17 @@ class ThingsBoardService {
   async getDeviceAttributes(deviceId: string, keys?: string[]) {
     const keysParam = keys ? `?keys=${keys.join(",")}` : "";
     return this.get(
-      `/api/plugins/telemetry/DEVICE/${deviceId}/values/attributes${keysParam}`
+      `/api/plugins/telemetry/DEVICE/${deviceId}/values/attributes${keysParam}`,
     );
   }
 
   async saveDeviceAttributes(
     deviceId: string,
-    attributes: Record<string, any>
+    attributes: Record<string, any>,
   ) {
     return this.post(
       `/api/plugins/telemetry/DEVICE/${deviceId}/attributes/SERVER_SCOPE`,
-      attributes
+      attributes,
     );
   }
 
@@ -327,7 +338,7 @@ class ThingsBoardService {
       if (Array.isArray(values) && values.length > 0) {
         const sum = values.reduce(
           (acc, item) => acc + parseFloat(item.value),
-          0
+          0,
         );
         averages[key] = parseFloat((sum / values.length).toFixed(2));
       } else {
