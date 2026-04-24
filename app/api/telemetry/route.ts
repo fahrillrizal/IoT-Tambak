@@ -93,10 +93,15 @@ export async function GET(request: NextRequest) {
     if (
       (t !== undefined && (t < 26 || t > 32)) ||
       (p !== undefined && (p < 7.5 || p > 8.5)) ||
-      (d !== undefined && (d < 4 || d > 8))
+      (d !== undefined && (d < 4 || d > 8)) ||
+      (s !== undefined && (s < 10 || s > 35)) ||
+      (tb !== undefined && tb > 80)
     ) {
       status = "Critical";
     } else if (
+      (t !== undefined && (t < 27 || t > 31)) ||
+      (p !== undefined && (p < 7.8 || p > 8.2)) ||
+      (d !== undefined && (d < 5 || d > 7.5)) ||
       (s !== undefined && (s < 15 || s > 30)) ||
       (tb !== undefined && (tb < 10 || tb > 50))
     ) {

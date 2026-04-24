@@ -27,15 +27,23 @@ function calculateStatus(
   if (
     (t !== undefined && t !== null && (t < 26 || t > 32)) ||
     (p !== undefined && p !== null && (p < 7.5 || p > 8.5)) ||
-    (d !== undefined && d !== null && (d < 4 || d > 8))
+    (d !== undefined && d !== null && (d < 4 || d > 8)) ||
+    (s !== undefined && s !== null && (s < 10 || s > 35)) ||
+    (data.turbidity !== undefined &&
+      data.turbidity !== null &&
+      data.turbidity > 80)
   ) {
     return "Critical";
   }
 
   if (
-    (s !== undefined && s !== null && (s < 15 || s > 30)) ||
     (t !== undefined && t !== null && (t < 27 || t > 31)) ||
-    (p !== undefined && p !== null && (p < 7.8 || p > 8.2))
+    (p !== undefined && p !== null && (p < 7.8 || p > 8.2)) ||
+    (d !== undefined && d !== null && (d < 5 || d > 7.5)) ||
+    (s !== undefined && s !== null && (s < 15 || s > 30)) ||
+    (data.turbidity !== undefined &&
+      data.turbidity !== null &&
+      (data.turbidity < 10 || data.turbidity > 50))
   ) {
     return "Warning";
   }

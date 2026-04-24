@@ -12,19 +12,31 @@ interface SensorCardsGridProps {
 
 function getStatus(value: number | null, param: keyof typeof PARAMETER_THRESHOLDS): string {
   if (value === null || value === undefined) return "Warning";
-  const threshold = PARAMETER_THRESHOLDS[param];
 
-  if ("min" in threshold && "max" in threshold) {
-    if (value < threshold.min || value > threshold.max) return "Warning";
-    return "Normal";
+  switch (param) {
+    case "temperature":
+      if (value < 26 || value > 32) return "Critical";
+      if (value < 27 || value > 31) return "Warning";
+      return "Normal";
+    case "ph":
+      if (value < 7.5 || value > 8.5) return "Critical";
+      if (value < 7.8 || value > 8.2) return "Warning";
+      return "Normal";
+    case "dissolvedOxygen":
+      if (value < 4 || value > 8) return "Critical";
+      if (value < 5 || value > 7.5) return "Warning";
+      return "Normal";
+    case "salinity":
+      if (value < 10 || value > 35) return "Critical";
+      if (value < 15 || value > 30) return "Warning";
+      return "Normal";
+    case "turbidity":
+      if (value > 80) return "Critical";
+      if (value > 50 || value < 10) return "Warning";
+      return "Normal";
+    default:
+      return "Normal";
   }
-  if ("min" in threshold) {
-    return value >= threshold.min ? "Normal" : "Warning";
-  }
-  if ("max" in threshold) {
-    return value <= threshold.max ? "Normal" : "Warning";
-  }
-  return "Normal";
 }
 
 export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {

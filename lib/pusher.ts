@@ -48,3 +48,17 @@ export async function triggerSummaryUpdate(
     timestamp: Date.now(),
   });
 }
+
+export async function triggerAlertEvent(payload: {
+  deviceId: string;
+  severity: "WARNING" | "CRITICAL";
+  status: "ACTIVE" | "CLEARED" | "ACKNOWLEDGED";
+  message: string;
+  action?: string;
+  eventTime: number;
+}) {
+  await Promise.all([
+    pusher.trigger(`device-${payload.deviceId}`, "alert-event", payload),
+    pusher.trigger("global-telemetry", "alert-event", payload),
+  ]);
+}

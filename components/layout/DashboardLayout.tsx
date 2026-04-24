@@ -5,7 +5,7 @@ import {
   useCallback,
   ReactNode,
   useEffect,
-  useLayoutEffect,
+  useRef,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -40,6 +40,17 @@ interface DashboardLayoutProps {
   activeMenu?: MenuType;
   notificationCount?: number;
   defaultCollapsed?: boolean;
+  notificationItems?: NotificationItem[];
+}
+
+type NotificationSeverity = "warning" | "critical";
+
+export interface NotificationItem {
+  id: string;
+  message: string;
+  severity: NotificationSeverity;
+  timestamp: string;
+  action?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -59,6 +70,7 @@ export default function DashboardLayout({
   activeMenu = "dashboard",
   notificationCount = 0,
   defaultCollapsed = false,
+  notificationItems = [],
 }: DashboardLayoutProps) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -66,10 +78,28 @@ export default function DashboardLayout({
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const [transitionsEnabled, setTransitionsEnabled] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const desktopNotifRef = useRef<HTMLDivElement | null>(null);
+  const mobileNotifRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setTransitionsEnabled(true), 300);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedDesktop = desktopNotifRef.current?.contains(target);
+      const clickedMobile = mobileNotifRef.current?.contains(target);
+
+      if (!clickedDesktop && !clickedMobile) {
+        setIsNotifOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const toggleSidebar = useCallback(() => {
@@ -91,6 +121,52 @@ export default function DashboardLayout({
   const handleLogout = useCallback(() => {
     signOut({ callbackUrl: "/login" });
   }, []);
+
+  const toggleNotifications = useCallback(() => {
+    setIsNotifOpen((prev) => !prev);
+  }, []);
+
+  const resolvedNotificationCount =
+    notificationItems.length > 0 ? notificationItems.length : notificationCount;
+
+  const renderNotificationPanel = () => {
+    if (notificationItems.length === 0) {
+      return (
+        <div className="p-3 text-sm text-gray-500">Tidak ada notifikasi</div>
+      );
+    }
+
+    return (
+      <div className="max-h-80 overflow-y-auto">
+        {notificationItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => {
+              setIsNotifOpen(false);
+              handleNavigation("/history");
+            }}
+            className="w-full text-left p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+          >
+            <p
+              className={cn(
+                "text-xs font-semibold uppercase mb-1",
+                item.severity === "critical" ? "text-red-600" : "text-yellow-600"
+              )}
+            >
+              {item.severity === "critical" ? "Critical" : "Warning"}
+            </p>
+            <p className="text-sm text-gray-800 line-clamp-2">{item.message}</p>
+            {item.action ? (
+              <p className="text-xs text-cyan-700 mt-1">{item.action}</p>
+            ) : null}
+            <p className="text-xs text-gray-400 mt-1">
+              {new Date(item.timestamp).toLocaleString("id-ID")}
+            </p>
+          </button>
+        ))}
+      </div>
+    );
+  };
 
   const renderNavItem = (item: NavItem, isMobile: boolean = false) => {
     const Icon = item.icon;
@@ -179,19 +255,30 @@ export default function DashboardLayout({
               >
                 <QrCode className="h-5 w-5" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="relative"
-                aria-label="Notifications"
-              >
-                <Bell className="h-5 w-5 text-gray-600" />
-                {notificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {notificationCount}
-                  </span>
-                )}
-              </Button>
+              <div className="relative" ref={mobileNotifRef}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="relative"
+                  aria-label="Notifications"
+                  onClick={toggleNotifications}
+                >
+                  <Bell className="h-5 w-5 text-gray-600" />
+                  {resolvedNotificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      {resolvedNotificationCount}
+                    </span>
+                  )}
+                </Button>
+                {isNotifOpen ? (
+                  <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div className="p-3 border-b border-gray-100">
+                      <p className="text-sm font-semibold text-gray-900">Notifikasi</p>
+                    </div>
+                    {renderNotificationPanel()}
+                  </div>
+                ) : null}
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -344,14 +431,30 @@ export default function DashboardLayout({
                   <span className="hidden sm:inline">Scan QR Device</span>
                 </Button>
 
-                <Button variant="ghost" size="sm" className="relative">
-                  <Bell className="h-5 w-5 text-gray-600" />
-                  {notificationCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {notificationCount}
-                    </span>
-                  )}
-                </Button>
+                <div className="relative" ref={desktopNotifRef}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="relative"
+                    onClick={toggleNotifications}
+                  >
+                    <Bell className="h-5 w-5 text-gray-600" />
+                    {resolvedNotificationCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {resolvedNotificationCount}
+                      </span>
+                    )}
+                  </Button>
+
+                  {isNotifOpen ? (
+                    <div className="absolute right-0 mt-2 w-96 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                      <div className="p-3 border-b border-gray-100">
+                        <p className="text-sm font-semibold text-gray-900">Notifikasi</p>
+                      </div>
+                      {renderNotificationPanel()}
+                    </div>
+                  ) : null}
+                </div>
 
                 <Button
                   variant="ghost"

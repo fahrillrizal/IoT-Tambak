@@ -40,6 +40,15 @@ export interface DeviceStatusPayload {
   timestamp: number;
 }
 
+export interface AlertEventPayload {
+  deviceId: string;
+  severity: "WARNING" | "CRITICAL";
+  status: "ACTIVE" | "CLEARED" | "ACKNOWLEDGED";
+  message: string;
+  action?: string;
+  eventTime: number;
+}
+
 export function subscribeToDeviceTelemetry(
   deviceId: string,
   callback: (data: TelemetryPayload) => void
@@ -112,6 +121,24 @@ export function subscribeToSpecificDeviceStatus(
 
   return () => {
     channel.unbind("device-status");
+    pusher.unsubscribe(channelName);
+  };
+}
+
+export function subscribeToDeviceAlertEvents(
+  deviceId: string,
+  callback: (data: AlertEventPayload) => void
+) {
+  const pusher = getPusherClient();
+  const channelName = `device-${deviceId}`;
+  const channel = pusher.subscribe(channelName);
+
+  channel.bind("alert-event", (data: AlertEventPayload) => {
+    callback(data);
+  });
+
+  return () => {
+    channel.unbind("alert-event");
     pusher.unsubscribe(channelName);
   };
 }

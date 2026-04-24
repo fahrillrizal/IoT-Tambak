@@ -13,6 +13,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const deviceId = searchParams.get("deviceId");
     const hours = parseInt(searchParams.get("hours") || "24");
+    const limit = Math.min(
+      Math.max(parseInt(searchParams.get("limit") || "500"), 1),
+      5000
+    );
 
     if (!deviceId) {
       return NextResponse.json(
@@ -72,7 +76,7 @@ export async function GET(request: NextRequest) {
       keys,
       startTs,
       endTs,
-      500
+      limit
     );
 
     const timestamps = new Set<number>();

@@ -43,6 +43,21 @@ enum FeedingStatus {
   @@map("feeding_status")
 }
 
+enum AlertSeverity {
+  WARNING
+  CRITICAL
+
+  @@map("alert_severity")
+}
+
+enum AlertStatus {
+  ACTIVE
+  CLEARED
+  ACKNOWLEDGED
+
+  @@map("alert_status")
+}
+
 model User {
   id            Int       @id @default(autoincrement())
   name          String?
@@ -62,6 +77,7 @@ model User {
   accounts     Account[]
   sessions     Session[]
   userDevices  UserDevice[]
+  alertEvents  AlertEvent[]
 
   @@index([email])
   @@index([username])
@@ -119,6 +135,7 @@ model Pond {
   feedingSchedules FeedingSchedule[]
   dailySummaries   DailySummary[]
   hourlySummaries  HourlySummary[]
+  alertEvents      AlertEvent[]
 
   @@index([userId])
   @@index([isActive])
@@ -144,6 +161,7 @@ model Device {
   pond                Pond             @relation(fields: [pondId], references: [id], onDelete: Cascade)
   feedingHistory      FeedingHistory[]
   userDevices         UserDevice[]
+  alertEvents         AlertEvent[]
 
   @@index([pondId])
   @@index([deviceToken])
@@ -284,4 +302,33 @@ model PasswordResetOTP {
   @@index([email])
   @@index([otp])
   @@map("password_reset_otps")
+}
+
+model AlertEvent {
+  id         BigInt        @id @default(autoincrement()) @db.BigInt
+  eventKey   String        @unique @map("event_key") @db.VarChar(191)
+  tbAlarmId  String?       @map("tb_alarm_id") @db.VarChar(191)
+  tbDeviceId String        @map("tb_device_id") @db.VarChar(255)
+  userId     Int           @map("user_id")
+  pondId     Int           @map("pond_id")
+  deviceId   Int           @map("device_id")
+  severity   AlertSeverity
+  status     AlertStatus   @default(ACTIVE)
+  message    String        @db.Text
+  issueCount Int?          @map("issue_count")
+  parameters Json?
+  action     String?       @db.VarChar(255)
+  eventTime  DateTime      @map("event_time")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pond   Pond   @relation(fields: [pondId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tbAlarmId])
+  @@index([userId, eventTime])
+  @@index([deviceId, eventTime])
+  @@index([severity, status, eventTime])
+  @@map("alert_events")
 }

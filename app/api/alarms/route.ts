@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { thingsboardService } from "@/lib/thingsboard";
+import { prisma } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const searchParams = request.nextUrl.searchParams;
     const deviceId = searchParams.get("deviceId");
     const status = searchParams.get("status") as any;
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const severity = searchParams.get("severity") as
+      | "CRITICAL"
+      | "WARNING"
+      | "MAJOR"
+      | "MINOR"
+      | null;
+    const limit = Math.min(
+      Math.max(parseInt(searchParams.get("limit") || "200"), 1),
+      1000
+    );
 
     if (!deviceId) {
       return NextResponse.json(
@@ -21,8 +31,36 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const device = await prisma.device.findFirst({
+      where: {
+        thingsboardDeviceId: deviceId,
+        OR: [
+          { pond: { userId: user.id } },
+          { userDevices: { some: { userId: user.id } } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (!device) {
+      return NextResponse.json(
+        { error: "Device not found or access denied" },
+        { status: 404 }
+      );
+    }
+
     const alarms = await thingsboardService.getDeviceAlarms(deviceId, {
       status,
+      severity: severity || undefined,
       limit,
     });
 
