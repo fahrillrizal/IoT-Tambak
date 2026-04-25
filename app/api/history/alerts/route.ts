@@ -1,12 +1,124 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { thingsboardService } from "@/lib/thingsboard";
+import { Prisma } from "@prisma/client";
 
 const PERIOD_TO_DAYS: Record<string, number> = {
+  today: 1,
   "7days": 7,
   "30days": 30,
   "90days": 90,
 };
+const WIB_OFFSET_HOURS = 7;
+
+const TELEMETRY_KEYS = [
+  "temperature",
+  "ph",
+  "dissolvedOxygen",
+  "salinity",
+  "turbidity",
+] as const;
+
+interface AlertRow {
+  id: bigint | string | number;
+  tbAlarmId: string | null;
+  severity: "WARNING" | "CRITICAL";
+  status: "ACTIVE" | "CLEARED" | "ACKNOWLEDGED";
+  message: string;
+  issueCount: number | null;
+  parameters: Prisma.JsonValue;
+  action: string | null;
+  eventTime: Date;
+  createdAt: Date;
+}
+
+function stripDoublePrefix(message: string): string {
+  // Hapus double prefix seperti "CRITICAL: CRITICAL: ..." atau "WARNING: WARNING: ..."
+  return message.replace(/^(CRITICAL|WARNING):\s*\1:\s*/i, "$1: ").trim();
+}
+
+function buildMessageFromParams(severity: "WARNING" | "CRITICAL", params: any): string | null {
+  const parts: string[] = [];
+  if (typeof params.temperature === "number") parts.push(`Suhu ${params.temperature.toFixed(1)}°C`);
+  if (typeof params.ph === "number") parts.push(`pH ${params.ph.toFixed(2)}`);
+  if (typeof params.dissolvedOxygen === "number") parts.push(`DO ${params.dissolvedOxygen.toFixed(1)} mg/L`);
+  if (typeof params.salinity === "number") parts.push(`Salinitas ${params.salinity.toFixed(1)} ppt`);
+  if (typeof params.turbidity === "number") parts.push(`Turbidity ${params.turbidity.toFixed(1)} NTU`);
+  if (parts.length === 0) return null;
+  return `${severity}: ${parts.join(" • ")}`;
+}
+
+function computeSeverityFromParams(params: any): "WARNING" | "CRITICAL" | null {
+  const t = params?.temperature;
+  const p = params?.ph;
+  const d = params?.dissolvedOxygen;
+  const s = params?.salinity;
+  const tb = params?.turbidity;
+
+  if (
+    (t != null && (t < 26 || t > 32)) ||
+    (p != null && (p < 7.5 || p > 8.5)) ||
+    (d != null && (d < 4 || d > 8)) ||
+    (s != null && (s < 10 || s > 35)) ||
+    (tb != null && tb > 80)
+  ) return "CRITICAL";
+
+  if (
+    (t != null && (t < 27 || t > 31)) ||
+    (p != null && (p < 7.8 || p > 8.2)) ||
+    (d != null && (d < 5 || d > 7.5)) ||
+    (s != null && (s < 15 || s > 30)) ||
+    (tb != null && (tb < 10 || tb > 50))
+  ) return "WARNING";
+
+  return null;
+}
+
+type TelemetryPoint = {
+  timestamp: number;
+  temperature?: number;
+  ph?: number;
+  dissolvedOxygen?: number;
+  salinity?: number;
+  turbidity?: number;
+};
+
+function mapTelemetryHistoryToPoints(history: Record<string, any[]>): TelemetryPoint[] {
+  const timestamps = new Set<number>();
+
+  for (const values of Object.values(history || {})) {
+    for (const item of values || []) {
+      if (typeof item?.ts === "number") timestamps.add(item.ts);
+    }
+  }
+
+  return Array.from(timestamps)
+    .sort((a, b) => b - a)
+    .map((ts) => {
+      const point: TelemetryPoint = { timestamp: ts };
+
+      for (const key of TELEMETRY_KEYS) {
+        const values = history?.[key] || [];
+        const match = values.find((v: any) => v?.ts === ts);
+        if (!match) continue;
+
+        const parsed = Number.parseFloat(String(match.value));
+        if (!Number.isNaN(parsed)) {
+          point[key] = parsed;
+        }
+      }
+
+      return point;
+    });
+}
+
+function getTodayStartWIBTs(): number {
+  const now = new Date();
+  const wibDate = new Date(now.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
+  wibDate.setHours(0, 0, 0, 0);
+  return wibDate.getTime() - WIB_OFFSET_HOURS * 60 * 60 * 1000;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,10 +133,7 @@ export async function GET(request: NextRequest) {
     const days = PERIOD_TO_DAYS[period] || 7;
 
     if (!deviceId) {
-      return NextResponse.json(
-        { error: "Device ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Device ID is required" }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
@@ -44,81 +153,145 @@ export async function GET(request: NextRequest) {
           { userDevices: { some: { userId: user.id } } },
         ],
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!device) {
-      return NextResponse.json(
-        { error: "Device not found or access denied" },
-        { status: 404 }
+      return NextResponse.json({ error: "Device not found or access denied" }, { status: 404 });
+    }
+
+    if (period === "today") {
+      const endTs = Date.now();
+      const startTs = getTodayStartWIBTs();
+
+      const history = await thingsboardService.getTelemetryHistory(
+        deviceId,
+        [...TELEMETRY_KEYS],
+        startTs,
+        endTs,
+        5000,
       );
+
+      const points = mapTelemetryHistoryToPoints(history || {});
+      const realtimeAlerts = points
+        .map((point) => {
+          const params = {
+            temperature: point.temperature ?? null,
+            ph: point.ph ?? null,
+            dissolvedOxygen: point.dissolvedOxygen ?? null,
+            salinity: point.salinity ?? null,
+            turbidity: point.turbidity ?? null,
+          };
+
+          const severity = computeSeverityFromParams(params);
+          if (!severity) return null;
+
+          const eventTimeIso = new Date(point.timestamp).toISOString();
+          return {
+            id: `rt-${point.timestamp}`,
+            tbAlarmId: null,
+            severity,
+            status: "ACTIVE" as const,
+            message: buildMessageFromParams(severity, params) || `${severity}: Kondisi kualitas air tidak normal`,
+            issueCount: null,
+            parameters: params,
+            action: severity === "CRITICAL" ? "SEGERA CEK TAMBAK!" : "Perlu pengecekan",
+            eventTime: eventTimeIso,
+            createdAt: eventTimeIso,
+          };
+        })
+        .filter(Boolean);
+
+      const activeWarning = realtimeAlerts.filter((i) => i?.severity === "WARNING").length;
+      const activeCritical = realtimeAlerts.filter((i) => i?.severity === "CRITICAL").length;
+
+      return NextResponse.json({
+        success: true,
+        data: realtimeAlerts,
+        summary: {
+          total: realtimeAlerts.length,
+          activeWarning,
+          activeCritical,
+          activeTotal: realtimeAlerts.length,
+        },
+      });
     }
 
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const alertDelegate = (prisma as any).alertEvent;
 
-    const alerts = await prisma.alertEvent.findMany({
-      where: {
-        deviceId: device.id,
-        eventTime: {
-          gte: startDate,
-        },
-        severity: {
-          in: ["WARNING", "CRITICAL"],
-        },
-      },
-      orderBy: {
-        eventTime: "desc",
-      },
-      take: 500,
-      select: {
-        id: true,
-        tbAlarmId: true,
-        severity: true,
-        status: true,
-        message: true,
-        issueCount: true,
-        parameters: true,
-        action: true,
-        eventTime: true,
-        createdAt: true,
-      },
-    });
-
-    const activeWarnings = alerts.filter(
-      (item) => item.severity === "WARNING" && item.status === "ACTIVE"
-    );
-    const activeCritical = alerts.filter(
-      (item) => item.severity === "CRITICAL" && item.status === "ACTIVE"
-    );
+    const alerts: AlertRow[] = alertDelegate
+      ? await alertDelegate.findMany({
+          where: {
+            deviceId: device.id,
+            eventTime: { gte: startDate },
+            severity: { in: ["WARNING", "CRITICAL"] },
+            status: { not: "CLEARED" },
+          },
+          orderBy: { eventTime: "desc" },
+          take: 500,
+          select: {
+            id: true,
+            tbAlarmId: true,
+            severity: true,
+            status: true,
+            message: true,
+            issueCount: true,
+            parameters: true,
+            action: true,
+            eventTime: true,
+            createdAt: true,
+          },
+        })
+      : await prisma.$queryRaw<AlertRow[]>(Prisma.sql`
+          SELECT id, tb_alarm_id AS "tbAlarmId", severity::text AS severity,
+            status::text AS status, message, issue_count AS "issueCount",
+            parameters, action, event_time AS "eventTime", created_at AS "createdAt"
+          FROM alert_events
+          WHERE device_id = ${device.id}
+            AND event_time >= ${startDate}
+            AND severity IN ('WARNING', 'CRITICAL')
+            AND status != 'CLEARED'
+          ORDER BY event_time DESC LIMIT 500
+        `);
 
     return NextResponse.json({
       success: true,
-      data: alerts.map((item) => ({
-        id: item.id.toString(),
-        tbAlarmId: item.tbAlarmId,
-        severity: item.severity,
-        status: item.status,
-        message: item.message,
-        issueCount: item.issueCount,
-        parameters: item.parameters,
-        action: item.action,
-        eventTime: item.eventTime.toISOString(),
-        createdAt: item.createdAt.toISOString(),
-      })),
+      data: alerts.map((item: AlertRow) => {
+        const params = (item.parameters as any) || {};
+        const hasParams = Object.values(params).some((v) => v !== null && v !== undefined);
+
+        const realSeverity = hasParams
+          ? (computeSeverityFromParams(params) || item.severity)
+          : item.severity;
+
+        // Build dari params jika ada, fallback strip double prefix dari message lama
+        const finalMessage = hasParams
+          ? (buildMessageFromParams(realSeverity, params) ?? stripDoublePrefix(item.message))
+          : stripDoublePrefix(item.message);
+
+        return {
+          id: String(item.id),
+          tbAlarmId: item.tbAlarmId,
+          severity: realSeverity,
+          status: item.status,
+          message: finalMessage,
+          issueCount: item.issueCount,
+          parameters: item.parameters,
+          action: item.action,
+          eventTime: item.eventTime.toISOString(),
+          createdAt: item.createdAt.toISOString(),
+        };
+      }),
       summary: {
         total: alerts.length,
-        activeWarning: activeWarnings.length,
-        activeCritical: activeCritical.length,
-        activeTotal: activeWarnings.length + activeCritical.length,
+        activeWarning: alerts.filter((i: AlertRow) => i.severity === "WARNING").length,
+        activeCritical: alerts.filter((i: AlertRow) => i.severity === "CRITICAL").length,
+        activeTotal: alerts.length,
       },
     });
   } catch (error) {
     console.error("History alerts fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch history alerts" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch history alerts" }, { status: 500 });
   }
 }

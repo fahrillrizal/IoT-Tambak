@@ -17,7 +17,7 @@ import {
 import {
   Mail,
   Lock,
-  Fish,
+  Activity,
   AlertCircle,
   CheckCircle,
   Eye,
@@ -293,7 +293,7 @@ export default function ForgotPasswordForm() {
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="rounded-full bg-blue-100 p-3">
-              <Fish className="h-8 w-8 text-blue-600" />
+              <Activity className="h-8 w-8 text-blue-600" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">

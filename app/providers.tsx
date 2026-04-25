@@ -1,14 +1,17 @@
-'use client';
+"use client";
 
-import { SessionProvider } from 'next-auth/react';
-import { ReactNode } from 'react';
-import { ConfirmProvider } from '@/components/ConfirmDialog';
+import { SessionProvider } from "next-auth/react";
+import { ReactNode } from "react";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
       <ConfirmProvider>
-        {children}
+        <NotificationProvider>
+          {children}
+        </NotificationProvider>
       </ConfirmProvider>
     </SessionProvider>
   );

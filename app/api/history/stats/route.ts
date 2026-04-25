@@ -13,6 +13,7 @@ const TELEMETRY_KEYS = [
 ];
 
 const PERIOD_TO_DAYS: Record<string, number> = {
+  today: 1,
   "7days": 7,
   "30days": 30,
   "90days": 90,
@@ -23,6 +24,13 @@ function getCurrentWIBHourStartUTC(): number {
   const wibDate = new Date(now.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
   wibDate.setMinutes(0, 0, 0);
   return wibDate.getTime() - WIB_OFFSET_HOURS * 60 * 60 * 1000;
+}
+
+function getTodayStartWIBUTC(): Date {
+  const now = new Date();
+  const wibDate = new Date(now.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000);
+  wibDate.setHours(0, 0, 0, 0);
+  return new Date(wibDate.getTime() - WIB_OFFSET_HOURS * 60 * 60 * 1000);
 }
 
 function getWIBDayKey(date: Date): string {
@@ -92,7 +100,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const periodStartDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const periodStartDate =
+      period === "today"
+        ? getTodayStartWIBUTC()
+        : new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const [aggregateResult, firstSummary] = await Promise.all([
       prisma.hourlySummary.aggregate({

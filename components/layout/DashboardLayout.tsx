@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useCallback,
-  ReactNode,
-  useEffect,
-  useRef,
-} from "react";
+import { useState, useCallback, ReactNode, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -25,8 +19,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { DeviceScanModal } from "@/components/DeviceScanModal";
+import { useNotifications } from "@/context/NotificationContext";
 
-export type MenuType = "dashboard" | "smart-feeder" | "history" | "settings" | "devices";
+export type MenuType =
+  | "dashboard"
+  | "smart-feeder"
+  | "history"
+  | "settings"
+  | "devices";
 
 interface NavItem {
   id: MenuType;
@@ -51,6 +51,9 @@ export interface NotificationItem {
   severity: NotificationSeverity;
   timestamp: string;
   action?: string;
+  targetId?: string;
+  pondName?: string;
+  deviceId?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -79,8 +82,15 @@ export default function DashboardLayout({
   const [transitionsEnabled, setTransitionsEnabled] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+
   const desktopNotifRef = useRef<HTMLDivElement | null>(null);
   const mobileNotifRef = useRef<HTMLDivElement | null>(null);
+
+  const {
+    notifications: globalNotifications,
+    dismissNotification,
+    clearNotifications,
+  } = useNotifications();
 
   useEffect(() => {
     const timer = setTimeout(() => setTransitionsEnabled(true), 300);
@@ -92,12 +102,10 @@ export default function DashboardLayout({
       const target = event.target as Node;
       const clickedDesktop = desktopNotifRef.current?.contains(target);
       const clickedMobile = mobileNotifRef.current?.contains(target);
-
       if (!clickedDesktop && !clickedMobile) {
         setIsNotifOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -112,10 +120,9 @@ export default function DashboardLayout({
 
   const handleNavigation = useCallback(
     (href: string) => {
-      if (pathname === href) return;
       router.push(href);
     },
-    [router, pathname]
+    [router],
   );
 
   const handleLogout = useCallback(() => {
@@ -126,42 +133,99 @@ export default function DashboardLayout({
     setIsNotifOpen((prev) => !prev);
   }, []);
 
-  const resolvedNotificationCount =
-    notificationItems.length > 0 ? notificationItems.length : notificationCount;
+  const clearAll = useCallback(async () => {
+    await clearNotifications();
+  }, [clearNotifications]);
+
+  const allNotifications: NotificationItem[] = [
+    ...globalNotifications,
+    ...notificationItems,
+  ].filter(
+    (item, index, arr) => index === arr.findIndex((x) => x.id === item.id),
+  );
+
+  const visibleNotifications = allNotifications;
+
+  const resolvedCount =
+    visibleNotifications.length > 0
+      ? visibleNotifications.length
+      : notificationCount;
+
+  const handleNotificationClick = useCallback(
+    (item: NotificationItem) => {
+      dismissNotification(item.targetId);
+      setIsNotifOpen(false);
+
+      const deviceId =
+        item.deviceId ||
+        (() => {
+          if (!item.id.startsWith("notif-derived-")) return undefined;
+          const match = item.id.match(/^notif-derived-(.+)-\d+$/);
+          if (match?.[1]) return match[1];
+          return item.id.replace("notif-derived-", "");
+        })();
+
+      const params = new URLSearchParams({ period: "today" });
+      if (deviceId) params.set("device", deviceId);
+
+      if (item.targetId?.startsWith("alarm-")) {
+        params.set("highlight", encodeURIComponent(item.targetId));
+      }
+
+      router.push(`/history?${params.toString()}`);
+    },
+    [dismissNotification, router],
+  );
 
   const renderNotificationPanel = () => {
-    if (notificationItems.length === 0) {
+    if (visibleNotifications.length === 0) {
       return (
-        <div className="p-3 text-sm text-gray-500">Tidak ada notifikasi</div>
+        <div className="p-4 text-sm text-gray-500 text-center py-6">
+          Tidak ada notifikasi aktif
+        </div>
       );
     }
 
     return (
-      <div className="max-h-80 overflow-y-auto">
-        {notificationItems.map((item) => (
+      <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+        {visibleNotifications.map((item) => (
           <button
             key={item.id}
-            onClick={() => {
-              setIsNotifOpen(false);
-              handleNavigation("/history");
-            }}
-            className="w-full text-left p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+            onClick={() => handleNotificationClick(item)}
+            className="w-full text-left p-3 hover:bg-gray-50 transition-colors"
           >
-            <p
-              className={cn(
-                "text-xs font-semibold uppercase mb-1",
-                item.severity === "critical" ? "text-red-600" : "text-yellow-600"
-              )}
-            >
-              {item.severity === "critical" ? "Critical" : "Warning"}
-            </p>
-            <p className="text-sm text-gray-800 line-clamp-2">{item.message}</p>
-            {item.action ? (
-              <p className="text-xs text-cyan-700 mt-1">{item.action}</p>
-            ) : null}
-            <p className="text-xs text-gray-400 mt-1">
-              {new Date(item.timestamp).toLocaleString("id-ID")}
-            </p>
+            <div className="flex items-start gap-2">
+              <span
+                className={cn(
+                  "mt-1 shrink-0 w-2 h-2 rounded-full",
+                  item.severity === "critical" ? "bg-red-500" : "bg-yellow-400",
+                )}
+              />
+              <div className="flex-1 min-w-0">
+                <p
+                  className={cn(
+                    "text-xs font-semibold uppercase mb-0.5",
+                    item.severity === "critical"
+                      ? "text-red-600"
+                      : "text-yellow-600",
+                  )}
+                >
+                  {item.severity === "critical" ? "Critical" : "Warning"}
+                  {item.pondName ? ` · ${item.pondName}` : ""}
+                </p>
+                <p className="text-sm text-gray-800 line-clamp-2 leading-snug">
+                  {item.message}
+                </p>
+                {item.action ? (
+                  <p className="text-xs text-cyan-700 font-medium mt-1">
+                    {item.action}
+                  </p>
+                ) : null}
+                <p className="text-xs text-gray-400 mt-1">
+                  {new Date(item.timestamp).toLocaleString("id-ID")}
+                </p>
+              </div>
+            </div>
           </button>
         ))}
       </div>
@@ -179,7 +243,7 @@ export default function DashboardLayout({
           onClick={() => handleNavigation(item.href)}
           className={cn(
             "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all",
-            isActive ? "text-blue-600" : "text-gray-600"
+            isActive ? "text-blue-600" : "text-gray-600",
           )}
         >
           <Icon className="h-5 w-5" />
@@ -198,7 +262,7 @@ export default function DashboardLayout({
           isCollapsed ? "justify-center px-3" : "gap-3 px-4",
           isActive
             ? "bg-blue-100 text-blue-600"
-            : "text-gray-600 hover:bg-gray-100"
+            : "text-gray-600 hover:bg-gray-100",
         )}
         title={isCollapsed ? item.label : undefined}
       >
@@ -212,14 +276,13 @@ export default function DashboardLayout({
 
   const renderSettingsItem = (isMobile: boolean = false) => {
     const isActive = activeMenu === "settings";
-
     if (isMobile) {
       return (
         <button
           onClick={() => handleNavigation("/settings")}
           className={cn(
             "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all",
-            isActive ? "text-blue-600" : "text-gray-600"
+            isActive ? "text-blue-600" : "text-gray-600",
           )}
         >
           <Settings className="h-5 w-5" />
@@ -227,15 +290,37 @@ export default function DashboardLayout({
         </button>
       );
     }
-
     return null;
   };
 
+  const notifHeader = (
+    <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-semibold text-gray-900">Notifikasi</p>
+        {resolvedCount > 0 && (
+          <span className="text-xs bg-red-100 text-red-600 font-medium px-2 py-0.5 rounded-full">
+            {resolvedCount} aktif
+          </span>
+        )}
+      </div>
+      {visibleNotifications.length > 0 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            clearAll();
+          }}
+          className="text-xs font-medium text-cyan-700 hover:text-cyan-800"
+        >
+          Clear semua
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ========== MOBILE (sm-md) ========== */}
+      {/* ========== MOBILE ========== */}
       <div className="lg:hidden">
-        {/* Top Navbar */}
         <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-40">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
@@ -264,17 +349,15 @@ export default function DashboardLayout({
                   onClick={toggleNotifications}
                 >
                   <Bell className="h-5 w-5 text-gray-600" />
-                  {resolvedNotificationCount > 0 && (
+                  {resolvedCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {resolvedNotificationCount}
+                      {resolvedCount}
                     </span>
                   )}
                 </Button>
                 {isNotifOpen ? (
                   <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                    <div className="p-3 border-b border-gray-100">
-                      <p className="text-sm font-semibold text-gray-900">Notifikasi</p>
-                    </div>
+                    {notifHeader}
                     {renderNotificationPanel()}
                   </div>
                 ) : null}
@@ -292,10 +375,8 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        {/* Page Content (Mobile) */}
         <main className="p-4 pb-24">{children}</main>
 
-        {/* Bottom Navigation Bar */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
           <div className="flex items-center justify-around px-2 py-2">
             {NAV_ITEMS.map((item) => renderNavItem(item, true))}
@@ -304,52 +385,47 @@ export default function DashboardLayout({
         </nav>
       </div>
 
-      {/* ========== DESKTOP (lg+) ========== */}
+      {/* ========== DESKTOP ========== */}
       <div className="hidden lg:flex">
-        {/* Sidebar */}
         <div
           className={cn(
             "shrink-0",
             transitionsEnabled && "transition-all duration-300",
-            isCollapsed ? "w-20" : "w-64"
+            isCollapsed ? "w-20" : "w-64",
           )}
         >
           <aside
             className={cn(
               "bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-30",
               transitionsEnabled && "transition-all duration-300",
-              isCollapsed ? "w-20" : "w-64"
+              isCollapsed ? "w-20" : "w-64",
             )}
           >
-            {/* Logo */}
             <Link
               href="/"
               className={cn(
                 "flex items-center gap-3 mb-8",
-                isCollapsed ? "p-4 justify-center" : "p-6"
+                isCollapsed ? "p-4 justify-center" : "p-6",
               )}
             >
               <div className="rounded-lg bg-blue-100 p-2">
                 <Activity className="h-5 w-5 text-blue-600" />
               </div>
-
               {!isCollapsed && (
                 <h1 className="text-xl font-bold text-gray-900">IoT Tambak</h1>
               )}
             </Link>
 
-            {/* Navigation */}
             <nav
               className={cn("flex-1 space-y-1", isCollapsed ? "px-2" : "px-4")}
             >
               {NAV_ITEMS.map((item) => renderNavItem(item, false))}
             </nav>
 
-            {/* User Info */}
             <div
               className={cn(
                 "border-t border-gray-200",
-                isCollapsed ? "p-2" : "p-4"
+                isCollapsed ? "p-2" : "p-4",
               )}
             >
               <div
@@ -357,7 +433,9 @@ export default function DashboardLayout({
                 className={cn(
                   "flex cursor-pointer items-center rounded-lg transition-colors",
                   isCollapsed ? "justify-center p-2" : "gap-3 p-2",
-                  activeMenu === "settings" ? "bg-blue-100" : "hover:bg-gray-50"
+                  activeMenu === "settings"
+                    ? "bg-blue-100"
+                    : "hover:bg-gray-50",
                 )}
                 title={isCollapsed ? "Pengaturan Akun" : undefined}
               >
@@ -385,7 +463,7 @@ export default function DashboardLayout({
                         "text-sm font-medium truncate",
                         activeMenu === "settings"
                           ? "text-blue-700"
-                          : "text-gray-900"
+                          : "text-gray-900",
                       )}
                     >
                       {session?.user?.email}
@@ -395,7 +473,7 @@ export default function DashboardLayout({
                         "text-xs",
                         activeMenu === "settings"
                           ? "text-blue-500"
-                          : "text-gray-500"
+                          : "text-gray-500",
                       )}
                     >
                       {session?.user?.username || "Pengguna"}
@@ -407,9 +485,7 @@ export default function DashboardLayout({
           </aside>
         </div>
 
-        {/* Main Content (Desktop) */}
         <div className="flex-1 flex flex-col min-h-screen">
-          {/* Header */}
           <header className="bg-white border-b border-gray-200 px-8 py-4 sticky top-0 z-20">
             <div className="flex items-center justify-between">
               <button
@@ -439,18 +515,16 @@ export default function DashboardLayout({
                     onClick={toggleNotifications}
                   >
                     <Bell className="h-5 w-5 text-gray-600" />
-                    {resolvedNotificationCount > 0 && (
+                    {resolvedCount > 0 && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {resolvedNotificationCount}
+                        {resolvedCount}
                       </span>
                     )}
                   </Button>
 
                   {isNotifOpen ? (
                     <div className="absolute right-0 mt-2 w-96 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                      <div className="p-3 border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-900">Notifikasi</p>
-                      </div>
+                      {notifHeader}
                       {renderNotificationPanel()}
                     </div>
                   ) : null}
@@ -469,12 +543,10 @@ export default function DashboardLayout({
             </div>
           </header>
 
-          {/* Page Content */}
           <main className="flex-1 p-8 overflow-auto">{children}</main>
         </div>
       </div>
 
-      {/* Scan Modal */}
       <DeviceScanModal
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}

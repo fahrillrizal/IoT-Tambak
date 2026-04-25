@@ -50,6 +50,7 @@ export async function triggerSummaryUpdate(
 }
 
 export async function triggerAlertEvent(payload: {
+  alertId?: string;
   deviceId: string;
   severity: "WARNING" | "CRITICAL";
   status: "ACTIVE" | "CLEARED" | "ACKNOWLEDGED";

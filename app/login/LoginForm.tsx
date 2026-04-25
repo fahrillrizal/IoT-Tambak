@@ -17,7 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { loginSchema, type LoginInput } from "@/lib/validations";
-import { Mail, Lock, Fish, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Activity, AlertCircle, Eye, EyeOff } from "lucide-react";
 import GoogleIcon from "@/components/icons/GoogleIcon";
 
 function getCookie(name: string): string | null {
@@ -88,7 +88,7 @@ export default function LoginForm() {
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="rounded-full bg-blue-100 p-3">
-              <Fish className="h-8 w-8 text-blue-600" />
+              <Activity className="h-8 w-8 text-blue-600" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">IoT Tambak</CardTitle>

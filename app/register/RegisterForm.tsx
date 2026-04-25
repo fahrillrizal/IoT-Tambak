@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { registerSchema, type RegisterInput } from '@/lib/validations';
 import { getProvinces, getCitiesByProvince, type Province, type City } from '@/lib/location';
-import { User, Mail, Lock, Phone, MapPin, Fish, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, Phone, MapPin, Activity, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import GoogleIcon from '@/components/icons/GoogleIcon';
 
 export default function RegisterForm() {
@@ -149,7 +149,7 @@ export default function RegisterForm() {
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="rounded-full bg-blue-100 p-3">
-              <Fish className="h-8 w-8 text-blue-600" />
+              <Activity className="h-8 w-8 text-blue-600" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Daftar Akun Baru</CardTitle>
