@@ -52,6 +52,49 @@ function buildSensorMessage(
   return `${severity}: ${parts.join(" • ")}`;
 }
 
+type SensorParams = {
+  temperature?: number | null;
+  ph?: number | null;
+  dissolvedOxygen?: number | null;
+  salinity?: number | null;
+  turbidity?: number | null;
+};
+
+function normalizeParams(params: SensorParams): Record<string, number | null> {
+  return {
+    temperature:
+      typeof params.temperature === "number" && Number.isFinite(params.temperature)
+        ? params.temperature
+        : null,
+    ph: typeof params.ph === "number" && Number.isFinite(params.ph) ? params.ph : null,
+    dissolvedOxygen:
+      typeof params.dissolvedOxygen === "number" && Number.isFinite(params.dissolvedOxygen)
+        ? params.dissolvedOxygen
+        : null,
+    salinity:
+      typeof params.salinity === "number" && Number.isFinite(params.salinity)
+        ? params.salinity
+        : null,
+    turbidity:
+      typeof params.turbidity === "number" && Number.isFinite(params.turbidity)
+        ? params.turbidity
+        : null,
+  };
+}
+
+function isSameParams(
+  a: Record<string, number | null>,
+  b: Record<string, number | null>,
+): boolean {
+  return (
+    a.temperature === b.temperature &&
+    a.ph === b.ph &&
+    a.dissolvedOxygen === b.dissolvedOxygen &&
+    a.salinity === b.salinity &&
+    a.turbidity === b.turbidity
+  );
+}
+
 // Hitung severity yang benar dari nilai sensor aktual
 function computeSeverity(params: {
   temperature?: number | null;
@@ -126,15 +169,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
     }
 
-    // ── Cek status — jika CLEARED, jangan simpan ke DB, trigger Pusher saja ─
-    const rawStatus = String(
-      payload?.status || details?.status || metadata?.status || "ACTIVE"
-    ).toUpperCase();    
+    // Status dari metadata sering stale (mis. ACK lama), jadi jangan dijadikan prioritas.
+    const explicitStatus =
+      payload?.status ?? details?.status ?? body?.status ?? null;
+    const rawStatus = String(explicitStatus || "ACTIVE").toUpperCase();
 
     // ── Extract parameters (nilai sensor) ─────────────────────────────────
     const rawParams =
       payload?.parameters ||
       details?.parameters ||
+      body?.parameters ||
       {};
 
     const sensorParams = {
@@ -179,13 +223,20 @@ export async function POST(request: NextRequest) {
       ? buildSensorMessage(severity, sensorParams)
       : String(payload?.message || `${severity} Water Quality`).trim();
 
-    const status = toStatus(rawStatus);
+    let status = toStatus(rawStatus);
+    // Jika tidak ada explicit status namun ada severity + parameter valid,
+    // anggap event baru sebagai ACTIVE agar notifikasi/DB tidak hilang.
+    if (!explicitStatus && hasValidParams && status === "ACKNOWLEDGED") {
+      status = "ACTIVE";
+    }
     const action = payload?.action ||
       (severity === "CRITICAL" ? "SEGERA CEK TAMBAK!" : "Perlu pengecekan");
     const eventTime = toDate(payload?.timestamp || payload?.createdTime || body?.timestamp);
     const tbAlarmId =
       String(payload?.alarmId || payload?.id?.id || metadata?.alarmId || "").trim() || null;
-    const eventKey = `${tbAlarmId || tbDeviceId}:${status}:${eventTime.getTime()}`;
+    const eventKey = tbAlarmId
+      ? `${tbAlarmId}:${status}:${eventTime.getTime()}`
+      : `${tbDeviceId}:${status}:${eventTime.getTime()}:${Date.now()}`;
 
     // ── Cari device ────────────────────────────────────────────────────────
     const device = await prisma.device.findFirst({
@@ -197,8 +248,57 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    const parametersJson = hasValidParams ? (sensorParams as any) : null;
+    const normalizedParams = normalizeParams(sensorParams);
+    const parametersJson = hasValidParams ? (normalizedParams as any) : null;
     const alertDelegate = (prisma as any).alertEvent;
+
+    // Dedup 1 menit: untuk device + severity yang sama, jika parameter telemetry
+    // sama persis dalam 60 detik terakhir, skip insert agar tidak spam DB.
+    if (hasValidParams) {
+      const dedupSince = new Date(Date.now() - 60 * 1000);
+      const recentRows = alertDelegate
+        ? await alertDelegate.findMany({
+            where: {
+              deviceId: device.id,
+              severity,
+              eventTime: { gte: dedupSince },
+            },
+            select: {
+              id: true,
+              parameters: true,
+              eventTime: true,
+            },
+            orderBy: { eventTime: "desc" },
+            take: 20,
+          })
+        : await prisma.$queryRaw<Array<{ id: bigint; parameters: Prisma.JsonValue; eventTime: Date }>>(Prisma.sql`
+            SELECT id, parameters, event_time AS "eventTime"
+            FROM alert_events
+            WHERE device_id = ${device.id}
+              AND severity = ${severity}::alert_severity
+              AND event_time >= ${dedupSince}
+            ORDER BY event_time DESC
+            LIMIT 20
+          `);
+
+      const hasDuplicateInLastMinute = recentRows.some((row: any) => {
+        const rowParams =
+          row?.parameters && typeof row.parameters === "object"
+            ? normalizeParams(row.parameters as SensorParams)
+            : normalizeParams({});
+        return isSameParams(rowParams, normalizedParams);
+      });
+
+      if (hasDuplicateInLastMinute) {
+        return NextResponse.json({
+          success: true,
+          deduped: true,
+          severity,
+          status,
+          message,
+        });
+      }
+    }
 
     // ── Simpan ke DB ───────────────────────────────────────────────────────
     const saved = alertDelegate

@@ -56,6 +56,8 @@ export interface NotificationItem {
   deviceId?: string;
 }
 
+const DISMISSED_KEY = "iot_dismissed_notif_ids";
+
 const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/" },
   {
@@ -82,15 +84,35 @@ export default function DashboardLayout({
   const [transitionsEnabled, setTransitionsEnabled] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   const desktopNotifRef = useRef<HTMLDivElement | null>(null);
   const mobileNotifRef = useRef<HTMLDivElement | null>(null);
 
-  const {
-    notifications: globalNotifications,
-    dismissNotification,
-    clearNotifications,
-  } = useNotifications();
+  const { notifications: globalNotifications } = useNotifications();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(DISMISSED_KEY);
+      if (raw) {
+        const parsed: string[] = JSON.parse(raw);
+        setDismissedIds(new Set(parsed));
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const currentIds = new Set(globalNotifications.map((n) => n.id));
+    setDismissedIds((prev) => {
+      const cleaned = new Set([...prev].filter((id) => currentIds.has(id)));
+      if (cleaned.size !== prev.size) {
+        localStorage.setItem(DISMISSED_KEY, JSON.stringify([...cleaned]));
+        return cleaned;
+      }
+      return prev;
+    });
+  }, [globalNotifications]);
 
   useEffect(() => {
     const timer = setTimeout(() => setTransitionsEnabled(true), 300);
@@ -133,9 +155,21 @@ export default function DashboardLayout({
     setIsNotifOpen((prev) => !prev);
   }, []);
 
-  const clearAll = useCallback(async () => {
-    await clearNotifications();
-  }, [clearNotifications]);
+  const dismissIds = useCallback((ids: string[]) => {
+    setDismissedIds((prev) => {
+      const next = new Set([...prev, ...ids]);
+      localStorage.setItem(DISMISSED_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  const clearAll = useCallback(() => {
+    const allIds = [
+      ...globalNotifications.map((n) => n.id),
+      ...notificationItems.map((n) => n.id),
+    ];
+    dismissIds(allIds);
+  }, [globalNotifications, notificationItems, dismissIds]);
 
   const allNotifications: NotificationItem[] = [
     ...globalNotifications,
@@ -144,7 +178,9 @@ export default function DashboardLayout({
     (item, index, arr) => index === arr.findIndex((x) => x.id === item.id),
   );
 
-  const visibleNotifications = allNotifications;
+  const visibleNotifications = allNotifications.filter(
+    (n) => !dismissedIds.has(n.id),
+  );
 
   const resolvedCount =
     visibleNotifications.length > 0
@@ -153,7 +189,7 @@ export default function DashboardLayout({
 
   const handleNotificationClick = useCallback(
     (item: NotificationItem) => {
-      dismissNotification(item.targetId);
+      dismissIds([item.id]);
       setIsNotifOpen(false);
 
       const deviceId =
@@ -174,7 +210,7 @@ export default function DashboardLayout({
 
       router.push(`/history?${params.toString()}`);
     },
-    [dismissNotification, router],
+    [dismissIds, router],
   );
 
   const renderNotificationPanel = () => {

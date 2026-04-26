@@ -27,16 +27,12 @@ interface NotificationContextValue {
   notifications: NotificationItem[];
   total: number;
   refresh: () => void;
-  dismissNotification: (targetId?: string) => Promise<void>;
-  clearNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextValue>({
   notifications: [],
   total: 0,
   refresh: () => {},
-  dismissNotification: async () => {},
-  clearNotifications: async () => {},
 });
 
 export function useNotifications() {
@@ -45,6 +41,7 @@ export function useNotifications() {
 
 const POLL_MS = process.env.NODE_ENV === "development" ? 5_000 : 15_000;
 const MAX_NOTIFICATIONS = 300;
+const NOTIFICATION_STORAGE_KEY = "iot_active_notifications";
 
 function mergeNotifications(
   prev: NotificationItem[],
@@ -70,6 +67,32 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setNotifications(parsed as NotificationItem[]);
+      }
+    } catch {
+      // Ignore storage read errors
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(
+        NOTIFICATION_STORAGE_KEY,
+        JSON.stringify(notifications.slice(0, MAX_NOTIFICATIONS)),
+      );
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [notifications]);
+
   const fetchNotifications = useCallback(async () => {
     if (status !== "authenticated") return;
     try {
@@ -78,52 +101,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         const incoming = json.data as NotificationItem[];
-        const deduped = incoming.filter(
-          (item, index, arr) => index === arr.findIndex((x) => x.id === item.id),
-        );
-        deduped.sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-        );
-        setNotifications(deduped.slice(0, MAX_NOTIFICATIONS));
+        setNotifications((prev) => mergeNotifications(prev, incoming));
       }
     } catch {
       // Silently ignore — pertahankan notif yang sudah ada
     }
   }, [status]);
-
-  const dismissNotification = useCallback(
-    async (targetId?: string) => {
-      if (!targetId?.startsWith("alarm-")) return;
-
-      try {
-        await fetch("/api/notifications/alerts", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "one", targetId }),
-        });
-      } catch {
-        // Ignore network errors, next refresh will retry server truth
-      } finally {
-        setNotifications((prev) => prev.filter((n) => n.targetId !== targetId));
-      }
-    },
-    [],
-  );
-
-  const clearNotifications = useCallback(async () => {
-    try {
-      await fetch("/api/notifications/alerts", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "all" }),
-      });
-    } catch {
-      // Ignore network errors, client state still cleared for responsiveness
-    } finally {
-      setNotifications([]);
-    }
-  }, []);
 
   // Polling
   useEffect(() => {
@@ -196,8 +179,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         notifications,
         total: notifications.length,
         refresh: fetchNotifications,
-        dismissNotification,
-        clearNotifications,
       }}
     >
       {children}
