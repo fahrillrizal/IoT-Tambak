@@ -33,10 +33,8 @@ jobs:
         run: echo "⏭️ Skipped - no new data available"
 
       - name: Trigger daily summary (at 00:05 WIB / 17:05 UTC)
-        if: steps.check.outputs.hasData == 'true'
+        if: github.event.schedule == '5 17 * * *'
         run: |
-          if [ $(date -u +%H) -eq 17 ]; then
-            curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/daily-summary \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-              -H "Content-Type: application/json"
-          fi
+          curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/daily-summary \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"

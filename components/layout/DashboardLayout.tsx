@@ -103,18 +103,6 @@ export default function DashboardLayout({
   }, []);
 
   useEffect(() => {
-    const currentIds = new Set(globalNotifications.map((n) => n.id));
-    setDismissedIds((prev) => {
-      const cleaned = new Set([...prev].filter((id) => currentIds.has(id)));
-      if (cleaned.size !== prev.size) {
-        localStorage.setItem(DISMISSED_KEY, JSON.stringify([...cleaned]));
-        return cleaned;
-      }
-      return prev;
-    });
-  }, [globalNotifications]);
-
-  useEffect(() => {
     const timer = setTimeout(() => setTransitionsEnabled(true), 300);
     return () => clearTimeout(timer);
   }, []);
@@ -186,6 +174,9 @@ export default function DashboardLayout({
     visibleNotifications.length > 0
       ? visibleNotifications.length
       : notificationCount;
+
+  const badgeCountLabel =
+    resolvedCount >= 100 ? "99+" : String(resolvedCount);
 
   const handleNotificationClick = useCallback(
     (item: NotificationItem) => {
@@ -332,7 +323,9 @@ export default function DashboardLayout({
   const notifHeader = (
     <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <p className="text-sm font-semibold text-gray-900">Notifikasi</p>
+        <p className="text-sm font-semibold text-gray-900">
+          {resolvedCount > 0 ? `Notifikasi ${resolvedCount}` : "Notifikasi"}
+        </p>
         {resolvedCount > 0 && (
           <span className="text-xs bg-red-100 text-red-600 font-medium px-2 py-0.5 rounded-full">
             {resolvedCount} aktif
@@ -387,7 +380,7 @@ export default function DashboardLayout({
                   <Bell className="h-5 w-5 text-gray-600" />
                   {resolvedCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {resolvedCount}
+                      {badgeCountLabel}
                     </span>
                   )}
                 </Button>
@@ -553,7 +546,7 @@ export default function DashboardLayout({
                     <Bell className="h-5 w-5 text-gray-600" />
                     {resolvedCount > 0 && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {resolvedCount}
+                        {badgeCountLabel}
                       </span>
                     )}
                   </Button>

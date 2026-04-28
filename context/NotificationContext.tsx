@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   useCallback,
+  useMemo,
   ReactNode,
 } from "react";
 import { useSession } from "next-auth/react";
@@ -62,16 +63,60 @@ function mergeNotifications(
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { status } = useSession();
+  const { status, data: session } = useSession();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const allowedDeviceIdsRef = useRef<Set<string> | null>(null);
+  const allowedDeviceIdsLoadedRef = useRef(false);
+
+  const storageKey = useMemo(() => {
+    const email = session?.user?.email?.trim().toLowerCase();
+    return email
+      ? `${NOTIFICATION_STORAGE_KEY}:${email}`
+      : NOTIFICATION_STORAGE_KEY;
+  }, [session?.user?.email]);
+
+  const refreshAllowedDeviceIds = useCallback(async () => {
+    if (status !== "authenticated") {
+      allowedDeviceIdsRef.current = null;
+      allowedDeviceIdsLoadedRef.current = false;
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/devices");
+      if (!response.ok) return;
+
+      const json = await response.json();
+      if (!json.success || !Array.isArray(json.data)) return;
+
+      allowedDeviceIdsRef.current = new Set(
+        json.data
+          .map((device: { thingsboardDeviceId?: string }) => device.thingsboardDeviceId)
+          .filter((deviceId: unknown): deviceId is string => Boolean(deviceId)),
+      );
+      allowedDeviceIdsLoadedRef.current = true;
+    } catch {
+      // Ignore device list fetch errors and keep the previous allowlist.
+    }
+  }, [status]);
+
+  const isAllowedDevice = useCallback((deviceId?: string) => {
+    const allowedDeviceIds = allowedDeviceIdsRef.current;
+    if (!allowedDeviceIdsLoadedRef.current || !allowedDeviceIds) return false;
+    if (!deviceId) return false;
+    return allowedDeviceIds.has(deviceId);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const raw = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
-      if (!raw) return;
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        setNotifications([]);
+        return;
+      }
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         setNotifications(parsed as NotificationItem[]);
@@ -79,45 +124,59 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore storage read errors
     }
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(
-        NOTIFICATION_STORAGE_KEY,
-        JSON.stringify(notifications.slice(0, MAX_NOTIFICATIONS)),
-      );
+      localStorage.setItem(storageKey, JSON.stringify(notifications.slice(0, MAX_NOTIFICATIONS)));
     } catch {
       // Ignore storage write errors
     }
-  }, [notifications]);
+  }, [notifications, storageKey]);
 
   const fetchNotifications = useCallback(async () => {
     if (status !== "authenticated") return;
     try {
+      await refreshAllowedDeviceIds();
+
       const res = await fetch("/api/notifications/alerts");
       if (!res.ok) return;
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        const incoming = json.data as NotificationItem[];
+        const incoming = allowedDeviceIdsLoadedRef.current
+          ? (json.data as NotificationItem[]).filter((item) =>
+              isAllowedDevice(item.deviceId),
+            )
+          : (json.data as NotificationItem[]);
         setNotifications((prev) => mergeNotifications(prev, incoming));
       }
     } catch {
       // Silently ignore — pertahankan notif yang sudah ada
     }
-  }, [status]);
+  }, [isAllowedDevice, refreshAllowedDeviceIds, status]);
 
   // Polling
   useEffect(() => {
     if (status !== "authenticated") return;
-    fetchNotifications();
-    timerRef.current = setInterval(fetchNotifications, POLL_MS);
+    let cancelled = false;
+
+    const startPolling = async () => {
+      await refreshAllowedDeviceIds();
+      if (cancelled) return;
+
+      fetchNotifications();
+      timerRef.current = setInterval(fetchNotifications, POLL_MS);
+    };
+
+    startPolling();
+
     return () => {
+      cancelled = true;
       if (timerRef.current) clearInterval(timerRef.current);
       if (throttleRef.current) clearTimeout(throttleRef.current);
     };
-  }, [status, fetchNotifications]);
+  }, [fetchNotifications, refreshAllowedDeviceIds, status]);
 
   // Pusher realtime — hanya trigger fetch, tidak replace state
   useEffect(() => {
@@ -125,53 +184,65 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!process.env.NEXT_PUBLIC_PUSHER_KEY) return;
 
     let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
 
-    import("@/lib/pusher-client")
-      .then(({ subscribeToGlobalAlertEvents }) => {
-        unsubscribe = subscribeToGlobalAlertEvents((payload: AlertEventPayload) => {
-          if (payload.status === "CLEARED") return;
+    const startRealtimeSubscription = async () => {
+      await refreshAllowedDeviceIds();
+      if (cancelled) return;
 
-          const eventTime = payload.eventTime || Date.now();
-          setNotifications((prev) => {
-            const existing = prev.find((n) => n.deviceId === payload.deviceId);
-            const realtimeItem: NotificationItem = {
-              id:
-                payload.alertId != null
-                  ? `notif-db-${String(payload.alertId)}`
-                  : `notif-event-${payload.deviceId}-${eventTime}-${payload.status}`,
-              targetId:
-                payload.alertId != null
-                  ? `alarm-${String(payload.alertId)}`
-                  : `event-${payload.deviceId}-${eventTime}`,
-              severity: payload.severity === "CRITICAL" ? "critical" : "warning",
-              message: payload.message,
-              pondName: existing?.pondName || "Kolam",
-              action:
-                payload.action ||
-                (payload.severity === "CRITICAL"
-                  ? "SEGERA CEK TAMBAK!"
-                  : "Perlu pengecekan"),
-              timestamp: new Date(eventTime).toISOString(),
-              deviceId: payload.deviceId,
-            };
+      import("@/lib/pusher-client")
+        .then(({ subscribeToGlobalAlertEvents }) => {
+          if (cancelled) return;
 
-            return mergeNotifications(prev, [realtimeItem]);
+          unsubscribe = subscribeToGlobalAlertEvents((payload: AlertEventPayload) => {
+            if (payload.status === "CLEARED") return;
+            if (!isAllowedDevice(payload.deviceId)) return;
+
+            const eventTime = payload.eventTime || Date.now();
+            setNotifications((prev) => {
+              const existing = prev.find((n) => n.deviceId === payload.deviceId);
+              const realtimeItem: NotificationItem = {
+                id:
+                  payload.alertId != null
+                    ? `notif-db-${String(payload.alertId)}`
+                    : `notif-event-${payload.deviceId}-${eventTime}-${payload.status}`,
+                targetId:
+                  payload.alertId != null
+                    ? `alarm-${String(payload.alertId)}`
+                    : `event-${payload.deviceId}-${eventTime}`,
+                severity: payload.severity === "CRITICAL" ? "critical" : "warning",
+                message: payload.message,
+                pondName: existing?.pondName || "Kolam",
+                action:
+                  payload.action ||
+                  (payload.severity === "CRITICAL"
+                    ? "SEGERA CEK TAMBAK!"
+                    : "Perlu pengecekan"),
+                timestamp: new Date(eventTime).toISOString(),
+                deviceId: payload.deviceId,
+              };
+
+              return mergeNotifications(prev, [realtimeItem]);
+            });
+
+            // ACTIVE/ACKNOWLEDGED → fetch terbaru dengan throttle
+            if (throttleRef.current) return;
+            throttleRef.current = setTimeout(() => {
+              throttleRef.current = null;
+              fetchNotifications();
+            }, 2_000);
           });
+        })
+        .catch(() => {});
+    };
 
-          // ACTIVE/ACKNOWLEDGED → fetch terbaru dengan throttle
-          if (throttleRef.current) return;
-          throttleRef.current = setTimeout(() => {
-            throttleRef.current = null;
-            fetchNotifications();
-          }, 2_000);
-        });
-      })
-      .catch(() => {});
+    startRealtimeSubscription();
 
     return () => {
+      cancelled = true;
       if (unsubscribe) unsubscribe();
     };
-  }, [status, fetchNotifications]);
+  }, [isAllowedDevice, status]);
 
   return (
     <NotificationContext.Provider
