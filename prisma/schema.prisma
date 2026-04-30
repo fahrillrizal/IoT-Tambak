@@ -70,6 +70,10 @@ model User {
   provinceId    Int?      @map("province_id")
   cityId        Int?      @map("regency_id")
   address       String?   @db.Text
+  telegramChatId String?   @map("telegram_chat_id") @db.VarChar(32)
+  telegramConnectToken String? @map("telegram_connect_token") @db.VarChar(128)
+  telegramConnectTokenExpiresAt DateTime? @map("telegram_connect_token_exp")
+  telegramConnectedAt DateTime? @map("telegram_connected_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime? @updatedAt @map("updated_at")
 

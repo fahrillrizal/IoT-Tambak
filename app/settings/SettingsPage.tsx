@@ -19,6 +19,9 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
   const [googleLinked, setGoogleLinked] = useState<boolean | null>(null);
   const [loadingAction, setLoadingAction] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [telegramConnected, setTelegramConnected] = useState<boolean | null>(null);
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [telegramError, setTelegramError] = useState<string | null>(null);
 
   const refreshGoogleStatus = async () => {
     try {
@@ -30,6 +33,24 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
     }
   };
 
+  const refreshTelegramStatus = async () => {
+    setTelegramError(null);
+    try {
+      const res = await fetch("/api/settings/telegram/connect");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTelegramError(data.error || "Gagal memuat status Telegram");
+        setTelegramConnected(false);
+        return;
+      }
+      const data = await res.json();
+      setTelegramConnected(Boolean(data.connected));
+    } catch (e) {
+      setTelegramError("Gagal memuat status Telegram");
+      setTelegramConnected(false);
+    }
+  };
+
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
@@ -37,6 +58,7 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
   useEffect(() => {
     if (status === "authenticated") {
       refreshGoogleStatus();
+      refreshTelegramStatus();
     }
   }, [status]);
 
@@ -76,6 +98,32 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
       console.error("Terjadi kesalahan");
     } finally {
       setLoadingAction(false);
+    }
+  };
+
+  const handleConnectTelegram = async () => {
+    setTelegramLoading(true);
+    setTelegramError(null);
+    try {
+      const res = await fetch("/api/settings/telegram/connect", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTelegramError(data.error || "Gagal membuat koneksi Telegram");
+        return;
+      }
+
+      if (data?.connectUrl) {
+        const opened = window.open(data.connectUrl, "_blank", "noopener,noreferrer");
+        if (!opened) {
+          window.location.href = data.connectUrl;
+        }
+      }
+
+      await refreshTelegramStatus();
+    } catch (e) {
+      setTelegramError("Gagal membuat koneksi Telegram");
+    } finally {
+      setTelegramLoading(false);
     }
   };
 
@@ -163,6 +211,34 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
                   }`}
                 >
                   {loadingAction ? "Memproses..." : googleLinked ? "Putuskan" : "Hubungkan"}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3 bg-gray-50">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Notifikasi Telegram</p>
+                {telegramConnected === null ? (
+                  <p className="text-xs text-gray-500 flex items-center gap-2">
+                    <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                    Memeriksa status koneksi...
+                  </p>
+                ) : telegramConnected ? (
+                  <p className="text-xs text-green-600">Terkoneksi dengan Telegram.</p>
+                ) : (
+                  <p className="text-xs text-gray-500">Belum terhubung ke Telegram.</p>
+                )}
+                {telegramError && (
+                  <p className="text-xs text-red-600 mt-1">{telegramError}</p>
+                )}
+              </div>
+              {telegramConnected !== null && (
+                <button
+                  onClick={handleConnectTelegram}
+                  disabled={telegramLoading}
+                  className="text-xs font-medium px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {telegramLoading ? "Memproses..." : telegramConnected ? "Hubungkan Ulang" : "Hubungkan"}
                 </button>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { triggerAlertEvent } from "@/lib/pusher";
+import { buildAlertTelegramMessage, sendTelegramMessage } from "@/lib/telegram";
 import { Prisma } from "@prisma/client";
 
 const ALERT_WEBHOOK_SECRET = process.env.TB_WEBHOOK_SECRET || "";
@@ -345,6 +346,56 @@ export async function POST(request: NextRequest) {
       action: action || undefined,
       eventTime: eventTime.getTime(),
     });
+
+    // ── Telegram notification ─────────────────────────────────────────────
+    try {
+      const sharedUsers = await prisma.userDevice.findMany({
+        where: { deviceId: device.id },
+        select: { userId: true },
+      });
+
+      const userIds = new Set<number>([device.pond.userId]);
+      sharedUsers.forEach((item) => userIds.add(item.userId));
+
+      const users = await prisma.user.findMany({
+        where: {
+          id: { in: Array.from(userIds) },
+          telegramChatId: { not: null },
+        },
+        select: { telegramChatId: true },
+      });
+
+      const fallbackChatId =
+        process.env.NODE_ENV === "development"
+          ? process.env.TELEGRAM_CHAT_ID
+          : undefined;
+
+      const chatIds = users
+        .map((item) => item.telegramChatId)
+        .filter((value): value is string => Boolean(value));
+
+      if (chatIds.length === 0 && fallbackChatId) {
+        chatIds.push(fallbackChatId);
+      }
+
+      if (chatIds.length > 0) {
+        const telegramText = buildAlertTelegramMessage({
+          severity,
+          pondName: device.pond.name,
+          deviceId: tbDeviceId,
+          message,
+          action,
+          status,
+          eventTime,
+        });
+
+        await Promise.all(
+          chatIds.map((chatId) => sendTelegramMessage(chatId, telegramText)),
+        );
+      }
+    } catch (error) {
+      console.error("Telegram notification error:", error);
+    }
 
     console.log(`✅ Alert saved: ${severity} ${status} | ${message}`);
 
