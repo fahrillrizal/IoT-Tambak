@@ -22,7 +22,7 @@ export async function sendOTPEmail(email: string, otp: string): Promise<boolean>
           email: BREVO_SENDER_EMAIL,
         },
         to: [{ email }],
-        subject: 'Kode OTP Reset Password - IoT Tambak',
+        subject: 'Password Reset OTP - IoT Tambak',
         htmlContent: `
           <!DOCTYPE html>
           <html>
@@ -36,28 +36,28 @@ export async function sendOTPEmail(email: string, otp: string): Promise<boolean>
               <div style="background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden;">
                 <div style="background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%); padding: 30px; text-align: center;">
                   <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🐟 IoT Tambak</h1>
-                  <p style="color: #e0f2fe; margin: 10px 0 0;">Reset Password</p>
+                  <p style="color: #e0f2fe; margin: 10px 0 0;">Password Reset</p>
                 </div>
                 <div style="padding: 40px 30px;">
-                  <h2 style="color: #1e293b; margin: 0 0 20px; font-size: 20px;">Halo,</h2>
+                  <h2 style="color: #1e293b; margin: 0 0 20px; font-size: 20px;">Hello,</h2>
                   <p style="color: #64748b; line-height: 1.6; margin: 0 0 30px;">
-                    Kami menerima permintaan untuk mereset password akun Anda. Gunakan kode OTP di bawah ini untuk melanjutkan proses reset password:
+                    We received a request to reset your account password. Use the OTP code below to continue the reset process:
                   </p>
                   <div style="background-color: #f1f5f9; border-radius: 8px; padding: 25px; text-align: center; margin: 0 0 30px;">
                     <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #2563eb;">${otp}</span>
                   </div>
                   <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 0 0 30px; border-radius: 0 8px 8px 0;">
                     <p style="color: #92400e; margin: 0; font-size: 14px;">
-                      ⏰ <strong>Kode ini hanya berlaku selama 5 menit.</strong>
+                      ⏰ <strong>This code is valid for 5 minutes only.</strong>
                     </p>
                   </div>
                   <p style="color: #64748b; line-height: 1.6; margin: 0;">
-                    Jika Anda tidak meminta reset password, abaikan email ini. Keamanan akun Anda tetap terjaga.
+                    If you did not request a password reset, please ignore this email. Your account remains secure.
                   </p>
                 </div>
                 <div style="background-color: #f8fafc; padding: 20px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
                   <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                    © ${new Date().getFullYear()} IoT Tambak. Semua hak dilindungi.
+                    © ${new Date().getFullYear()} IoT Tambak. All rights reserved.
                   </p>
                 </div>
               </div>
@@ -65,7 +65,7 @@ export async function sendOTPEmail(email: string, otp: string): Promise<boolean>
           </body>
           </html>
         `,
-        textContent: `Kode OTP Reset Password IoT Tambak Anda adalah: ${otp}. Kode ini berlaku selama 5 menit.`,
+        textContent: `Your IoT Tambak password reset OTP is: ${otp}. This code is valid for 5 minutes.`,
       }),
     });
 

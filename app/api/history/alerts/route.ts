@@ -38,40 +38,70 @@ function stripDoublePrefix(message: string): string {
   return message.replace(/^(CRITICAL|WARNING):\s*\1:\s*/i, "$1: ").trim();
 }
 
-function buildMessageFromParams(severity: "WARNING" | "CRITICAL", params: any): string | null {
-  const parts: string[] = [];
-  if (typeof params.temperature === "number") parts.push(`Suhu ${params.temperature.toFixed(1)}°C`);
-  if (typeof params.ph === "number") parts.push(`pH ${params.ph.toFixed(2)}`);
-  if (typeof params.dissolvedOxygen === "number") parts.push(`DO ${params.dissolvedOxygen.toFixed(1)} mg/L`);
-  if (typeof params.salinity === "number") parts.push(`Salinitas ${params.salinity.toFixed(1)} ppt`);
-  if (typeof params.turbidity === "number") parts.push(`Turbidity ${params.turbidity.toFixed(1)} NTU`);
-  if (parts.length === 0) return null;
-  return `${severity}: ${parts.join(" • ")}`;
-}
+type IssueBuckets = {
+  critical: string[];
+  warning: string[];
+};
 
-function computeSeverityFromParams(params: any): "WARNING" | "CRITICAL" | null {
+function buildIssuesFromParams(params: any): IssueBuckets {
+  const critical: string[] = [];
+  const warning: string[] = [];
+
   const t = params?.temperature;
   const p = params?.ph;
   const d = params?.dissolvedOxygen;
   const s = params?.salinity;
   const tb = params?.turbidity;
 
-  if (
-    (t != null && (t < 26 || t > 32)) ||
-    (p != null && (p < 7.5 || p > 8.5)) ||
-    (d != null && (d < 4 || d > 8)) ||
-    (s != null && (s < 10 || s > 35)) ||
-    (tb != null && tb > 80)
-  ) return "CRITICAL";
+  if (typeof t === "number") {
+    if (t < 24) critical.push(`Temperature LOW: ${t.toFixed(1)}°C (min: 26°C)`);
+    else if (t > 32) critical.push(`Temperature HIGH: ${t.toFixed(1)}°C (max: 32°C)`);
+    else if (t === 25) warning.push(`Temperature slightly LOW: ${t.toFixed(1)}°C (min: 26°C)`);
+    else if (t === 31) warning.push(`Temperature slightly HIGH: ${t.toFixed(1)}°C (max: 30°C)`);
+  }
 
-  if (
-    (t != null && (t < 27 || t > 31)) ||
-    (p != null && (p < 7.8 || p > 8.2)) ||
-    (d != null && (d < 5 || d > 7.5)) ||
-    (s != null && (s < 15 || s > 30)) ||
-    (tb != null && (tb < 10 || tb > 50))
-  ) return "WARNING";
+  if (typeof p === "number") {
+    if (p < 6.0) critical.push(`pH LOW: ${p.toFixed(2)} (min: 7.5)`);
+    else if (p > 8.4) critical.push(`pH HIGH: ${p.toFixed(2)} (max: 8.5)`);
+    else if (p < 7.0) warning.push(`pH slightly LOW: ${p.toFixed(2)} (min: 7.0)`);
+    else if (p > 8.0) warning.push(`pH slightly HIGH: ${p.toFixed(2)} (max: 8.0)`);
+  }
 
+  if (typeof d === "number") {
+    if (d < 4.9) critical.push(`Dissolved Oxygen LOW: ${d.toFixed(1)} mg/L (min: 5 mg/L)`);
+    else if (d < 5 && d >= 4.9)
+      warning.push(`Dissolved Oxygen slightly LOW: ${d.toFixed(1)} mg/L (min: 5 mg/L)`);
+  }
+
+  if (typeof s === "number") {
+    if (s < 8) critical.push(`Salinity LOW: ${s.toFixed(1)} ppt (min: 10 ppt)`);
+    else if (s > 35) critical.push(`Salinity HIGH: ${s.toFixed(1)} ppt (max: 30 ppt)`);
+    else if (s < 10) warning.push(`Salinity slightly LOW: ${s.toFixed(1)} ppt (min: 10 ppt)`);
+    else if (s > 30 && s <= 35)
+      warning.push(`Salinity slightly HIGH: ${s.toFixed(1)} ppt (max: 30 ppt)`);
+  }
+
+  if (typeof tb === "number") {
+    if (tb > 40) critical.push(`Turbidity HIGH: ${tb.toFixed(1)} NTU (max: 15 NTU)`);
+    else if (tb > 25 && tb <= 40)
+      warning.push(`Turbidity slightly HIGH: ${tb.toFixed(1)} NTU (min: 10 NTU)`);
+  }
+
+  return { critical, warning };
+}
+
+function buildMessageFromParams(severity: "WARNING" | "CRITICAL", params: any): string | null {
+  const issues = buildIssuesFromParams(params);
+  const list = severity === "CRITICAL" ? issues.critical : issues.warning;
+
+  if (list.length === 0) return null;
+  return `${severity}: ${list.join(" | ")}`;
+}
+
+function computeSeverityFromParams(params: any): "WARNING" | "CRITICAL" | null {
+  const issues = buildIssuesFromParams(params);
+  if (issues.critical.length > 0) return "CRITICAL";
+  if (issues.warning.length > 0) return "WARNING";
   return null;
 }
 
@@ -192,10 +222,10 @@ export async function GET(request: NextRequest) {
             tbAlarmId: null,
             severity,
             status: "ACTIVE" as const,
-            message: buildMessageFromParams(severity, params) || `${severity}: Kondisi kualitas air tidak normal`,
+            message: buildMessageFromParams(severity, params) || `${severity}: Water quality is abnormal`,
             issueCount: null,
             parameters: params,
-            action: severity === "CRITICAL" ? "SEGERA CEK TAMBAK!" : "Perlu pengecekan",
+            action: severity === "CRITICAL" ? "CHECK POND IMMEDIATELY!" : "Needs inspection",
             eventTime: eventTimeIso,
             createdAt: eventTimeIso,
           };

@@ -120,7 +120,7 @@ export default function ImageCropModal({
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-linear-to-b from-black/80 to-transparent p-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <h3 className="text-white text-lg font-semibold">Crop Foto Profil</h3>
+          <h3 className="text-white text-lg font-semibold">Crop Profile Photo</h3>
           <button
             onClick={onCancel}
             className="text-white hover:text-gray-300 p-2 rounded-lg hover:bg-white/10 transition-colors"
@@ -178,7 +178,7 @@ export default function ImageCropModal({
           {/* Rotation Control */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-white text-sm">
-              <span>Rotasi</span>
+              <span>Rotation</span>
               <span>{rotation}°</span>
             </div>
             <div className="flex items-center gap-3">
@@ -209,14 +209,14 @@ export default function ImageCropModal({
               className="flex-1 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
               disabled={processing}
             >
-              Batal
+              Cancel
             </Button>
             <Button
               onClick={handleComplete}
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               disabled={processing}
             >
-              {processing ? "Memproses..." : "Terapkan"}
+              {processing ? "Processing..." : "Apply"}
             </Button>
           </div>
         </div>

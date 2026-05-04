@@ -188,7 +188,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
 
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       if (!cloudName) {
-        setError("Cloudinary belum dikonfigurasi");
+        setError("Cloudinary is not configured");
         setUploading(false);
         return;
       }
@@ -205,7 +205,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
 
       if (data.secure_url) {
         setForm((prev) => ({ ...prev, image: data.secure_url }));
-        setMessage("Foto profil berhasil diperbarui");
+        setMessage("Profile photo updated");
 
         // Update session to reflect new image immediately
         await fetch("/api/auth/session?update", { method: "GET" });
@@ -213,10 +213,10 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
         const event = new Event("visibilitychange");
         document.dispatchEvent(event);
       } else {
-        setError("Upload gagal: " + (data.error?.message || "Unknown error"));
+        setError("Upload failed: " + (data.error?.message || "Unknown error"));
       }
     } catch (err: any) {
-      setError("Upload gagal: " + err.message);
+      setError("Upload failed: " + err.message);
     } finally {
       setUploading(false);
       if (selectedImageUrl) {
@@ -271,10 +271,10 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
       const data = await res.json();
       if (!res.ok) {
         setError(
-          typeof data.error === "string" ? data.error : "Gagal menyimpan"
+          typeof data.error === "string" ? data.error : "Failed to save"
         );
       } else {
-        setMessage(data.message || "Profil tersimpan");
+        setMessage(data.message || "Profile saved");
         const newSnap: ProfileFormState = {
           username:
             payload.username !== undefined ? payload.username : form.username,
@@ -299,7 +299,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
         document.dispatchEvent(event);
       }
     } catch (e: any) {
-      setError("Terjadi kesalahan");
+      setError("Something went wrong");
     } finally {
       setSaving(false);
     }
@@ -322,13 +322,13 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
         >
           <ArrowLeft className="h-5 w-5" />
-          <span className="text-sm font-medium">Kembali ke Pengaturan</span>
+          <span className="text-sm font-medium">Back to Settings</span>
         </button>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold mb-2 text-gray-900">Edit Profil</h1>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900">Edit Profile</h1>
           <p className="text-sm text-gray-500 mb-8">
-            Perbarui informasi akun Anda.
+            Update your account information.
           </p>
 
           <div className="space-y-6">
@@ -338,7 +338,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
                 <div
                   className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center text-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
                   onClick={() => form.image && setShowImageModal(true)}
-                  title={form.image ? "Klik untuk melihat" : ""}
+                  title={form.image ? "Click to view" : ""}
                 >
                   {form.image ? (
                     <img
@@ -372,7 +372,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
             </div>
             {uploading && (
               <p className="text-sm text-gray-500 text-center">
-                Uploading gambar...
+                Uploading image...
               </p>
             )}
 
@@ -387,7 +387,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
                   value={session.user.email || ""}
                   disabled
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-gray-100 text-gray-500 cursor-not-allowed"
-                  placeholder="Email tidak dapat diubah"
+                  placeholder="Email cannot be changed"
                 />
               </div>
 
@@ -400,26 +400,26 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
                   value={form.username}
                   onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Masukkan username"
+                  placeholder="Enter username"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nama Lengkap
+                  Full Name
                 </label>
                 <input
                   name="name"
                   value={form.name}
                   onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Masukkan nama lengkap"
+                  placeholder="Enter full name"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nomor Telepon
+                  Phone Number
                 </label>
                 <input
                   name="phone"
@@ -432,7 +432,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Provinsi
+                  Province
                 </label>
                 <select
                   name="provinceId"
@@ -441,7 +441,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
                   disabled={loadingProvinces}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                 >
-                  <option value="">Pilih Provinsi</option>
+                  <option value="">Select Province</option>
                   {provinces.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -452,7 +452,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kota/Kabupaten
+                  City/Regency
                 </label>
                 <select
                   name="cityId"
@@ -461,7 +461,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
                   disabled={!form.provinceId || loadingCities}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                 >
-                  <option value="">Pilih Kota/Kabupaten</option>
+                  <option value="">Select City/Regency</option>
                   {cities.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -472,7 +472,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Alamat Lengkap
+                  Full Address
                 </label>
                 <textarea
                   name="address"
@@ -480,7 +480,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
                   onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={3}
-                  placeholder="Masukkan alamat lengkap"
+                  placeholder="Enter full address"
                 />
               </div>
             </div>
@@ -492,7 +492,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
                 disabled={!hasChanges || saving}
                 className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
-                {saving ? "Menyimpan..." : "Save"}
+                {saving ? "Saving..." : "Save"}
               </button>
               <button
                 onClick={handleReset}
@@ -530,7 +530,7 @@ export default function ProfilePage({ defaultCollapsed = false }: ProfilePagePro
               className="absolute -top-14 right-0 flex items-center gap-2 text-white hover:text-gray-300 transition-colors px-4 py-2 rounded-lg hover:bg-white/10"
             >
               <X className="h-5 w-5" />
-              <span className="text-sm font-medium">Tutup</span>
+              <span className="text-sm font-medium">Close</span>
             </button>
             <div className="bg-white rounded-lg p-2">
               <img

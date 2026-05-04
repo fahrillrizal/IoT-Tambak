@@ -20,10 +20,10 @@ export async function POST(request: Request) {
 
     if (existingAccount) {
       if (existingAccount.userId === Number(session.user.id)) {
-        return NextResponse.json({ message: "Akun Google sudah terhubung" });
+        return NextResponse.json({ message: "Google account already linked" });
       }
       return NextResponse.json(
-        { error: "Akun Google ini sudah terhubung ke user lain" },
+        { error: "This Google account is already linked to another user" },
         { status: 400 }
       );
     }
@@ -37,9 +37,9 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ message: "Akun Google berhasil dihubungkan" });
+    return NextResponse.json({ message: "Google account linked successfully" });
   } catch (e: any) {
     console.error("Link google error", e);
-    return NextResponse.json({ error: "Terjadi kesalahan" }, { status: 500 });
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

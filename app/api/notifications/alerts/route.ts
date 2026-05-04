@@ -149,7 +149,7 @@ export async function GET() {
               eventTime: item.eventTime,
               parameters: item.parameters,
               tbDeviceId: item.tbDeviceId,
-              pondName: item.pond?.name || "Kolam",
+              pondName: item.pond?.name || "Pond",
             })),
           )
       : await prisma.$queryRaw<NotificationRow[]>(Prisma.sql`
@@ -183,12 +183,12 @@ export async function GET() {
         targetId: `alarm-${String(row.id)}`,
         severity: row.severity === "CRITICAL" ? "critical" : "warning",
         message: computedMessage || stripDoublePrefix(row.message),
-        pondName: row.pondName || "Kolam",
+        pondName: row.pondName || "Pond",
         action:
           row.action ||
           (row.severity === "CRITICAL"
-            ? "SEGERA CEK TAMBAK!"
-            : "Perlu pengecekan"),
+            ? "CHECK POND IMMEDIATELY!"
+            : "Needs inspection"),
         timestamp: new Date(row.eventTime).toISOString(),
         deviceId: row.tbDeviceId,
       };
@@ -256,12 +256,12 @@ export async function GET() {
             targetId: `rt-${tbDeviceId}-${latestTs || Date.now()}`,
             severity: severity === "CRITICAL" ? "critical" : "warning",
             message:
-              paramsMessage || `${severity}: Kondisi kualitas air tidak normal`,
-            pondName: device.pond?.name || "Kolam",
+              paramsMessage || `${severity}: Water quality is not normal`,
+            pondName: device.pond?.name || "Pond",
             action:
               severity === "CRITICAL"
-                ? "SEGERA CEK TAMBAK!"
-                : "Perlu pengecekan",
+                ? "CHECK POND IMMEDIATELY!"
+                : "Needs inspection",
             timestamp: new Date(latestTs || Date.now()).toISOString(),
             deviceId: tbDeviceId,
           });

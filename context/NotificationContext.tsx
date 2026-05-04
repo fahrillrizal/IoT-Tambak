@@ -212,12 +212,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                     : `event-${payload.deviceId}-${eventTime}`,
                 severity: payload.severity === "CRITICAL" ? "critical" : "warning",
                 message: payload.message,
-                pondName: existing?.pondName || "Kolam",
+                pondName: existing?.pondName || "Pond",
                 action:
                   payload.action ||
                   (payload.severity === "CRITICAL"
-                    ? "SEGERA CEK TAMBAK!"
-                    : "Perlu pengecekan"),
+                    ? "CHECK POND IMMEDIATELY!"
+                    : "Needs inspection"),
                 timestamp: new Date(eventTime).toISOString(),
                 deviceId: payload.deviceId,
               };

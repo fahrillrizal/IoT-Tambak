@@ -33,6 +33,64 @@ function toDate(raw: unknown): Date {
   return new Date();
 }
 
+type IssueBuckets = {
+  critical: string[];
+  warning: string[];
+};
+
+function buildIssuesFromParams(params: {
+  temperature?: number | null;
+  ph?: number | null;
+  dissolvedOxygen?: number | null;
+  salinity?: number | null;
+  turbidity?: number | null;
+}): IssueBuckets {
+  const critical: string[] = [];
+  const warning: string[] = [];
+
+  const t = params.temperature;
+  const p = params.ph;
+  const d = params.dissolvedOxygen;
+  const s = params.salinity;
+  const tb = params.turbidity;
+
+  if (typeof t === "number") {
+    if (t < 24) critical.push(`Temperature LOW: ${t.toFixed(1)}°C (min: 26°C)`);
+    else if (t > 32) critical.push(`Temperature HIGH: ${t.toFixed(1)}°C (max: 32°C)`);
+    else if (t === 25) warning.push(`Temperature slightly LOW: ${t.toFixed(1)}°C (min: 26°C)`);
+    else if (t === 31) warning.push(`Temperature slightly HIGH: ${t.toFixed(1)}°C (max: 30°C)`);
+  }
+
+  if (typeof p === "number") {
+    if (p < 6.0) critical.push(`pH LOW: ${p.toFixed(2)} (min: 7.5)`);
+    else if (p > 8.4) critical.push(`pH HIGH: ${p.toFixed(2)} (max: 8.5)`);
+    else if (p < 7.0) warning.push(`pH slightly LOW: ${p.toFixed(2)} (min: 7.0)`);
+    else if (p > 8.0) warning.push(`pH slightly HIGH: ${p.toFixed(2)} (max: 8.0)`);
+  }
+
+  if (typeof d === "number") {
+    if (d < 4.9) critical.push(`Dissolved Oxygen LOW: ${d.toFixed(1)} mg/L (min: 5 mg/L)`);
+    else if (d < 5 && d >= 4.9)
+      warning.push(`Dissolved Oxygen slightly LOW: ${d.toFixed(1)} mg/L (min: 5 mg/L)`);
+  }
+
+  if (typeof s === "number") {
+    if (s < 8) critical.push(`Salinity LOW: ${s.toFixed(1)} ppt (min: 10 ppt)`);
+    else if (s > 35) critical.push(`Salinity HIGH: ${s.toFixed(1)} ppt (max: 30 ppt)`);
+    else if (s < 10) warning.push(`Salinity slightly LOW: ${s.toFixed(1)} ppt (min: 10 ppt)`);
+    else if (s > 30 && s <= 35)
+      warning.push(`Salinity slightly HIGH: ${s.toFixed(1)} ppt (max: 30 ppt)`);
+  }
+
+  if (typeof tb === "number") {
+    if (tb > 40) critical.push(`Turbidity HIGH: ${tb.toFixed(1)} NTU (max: 15 NTU)`);
+    else if (tb > 25 && tb <= 40)
+      warning.push(`Turbidity slightly HIGH: ${tb.toFixed(1)} NTU (min: 10 NTU)`);
+  }
+
+  return { critical, warning };
+}
+
 function buildSensorMessage(
   severity: "WARNING" | "CRITICAL",
   params: {
@@ -43,14 +101,10 @@ function buildSensorMessage(
     turbidity?: number | null;
   }
 ): string {
-  const parts: string[] = [];
-  if (params.temperature != null) parts.push(`Suhu ${Number(params.temperature).toFixed(1)}°C`);
-  if (params.ph != null) parts.push(`pH ${Number(params.ph).toFixed(2)}`);
-  if (params.dissolvedOxygen != null) parts.push(`DO ${Number(params.dissolvedOxygen).toFixed(1)} mg/L`);
-  if (params.salinity != null) parts.push(`Salinitas ${Number(params.salinity).toFixed(1)} ppt`);
-  if (params.turbidity != null) parts.push(`Turbidity ${Number(params.turbidity).toFixed(1)} NTU`);
-  if (parts.length === 0) return `${severity}: Kondisi kualitas air tidak normal`;
-  return `${severity}: ${parts.join(" • ")}`;
+  const issues = buildIssuesFromParams(params);
+  const list = severity === "CRITICAL" ? issues.critical : issues.warning;
+  if (list.length === 0) return `${severity}: Water quality is not normal`;
+  return `${severity}: ${list.join(" | ")}`;
 }
 
 type SensorParams = {
@@ -110,21 +164,15 @@ function computeSeverity(params: {
   const s = params.salinity ?? undefined;
   const tb = params.turbidity ?? undefined;
 
-  if (
-    (t !== undefined && (t < 26 || t > 32)) ||
-    (p !== undefined && (p < 7.5 || p > 8.5)) ||
-    (d !== undefined && (d < 4 || d > 8)) ||
-    (s !== undefined && (s < 10 || s > 35)) ||
-    (tb !== undefined && tb > 80)
-  ) return "CRITICAL";
-
-  if (
-    (t !== undefined && (t < 27 || t > 31)) ||
-    (p !== undefined && (p < 7.8 || p > 8.2)) ||
-    (d !== undefined && (d < 5 || d > 7.5)) ||
-    (s !== undefined && (s < 15 || s > 30)) ||
-    (tb !== undefined && (tb < 10 || tb > 50))
-  ) return "WARNING";
+  const issues = buildIssuesFromParams({
+    temperature: t,
+    ph: p,
+    dissolvedOxygen: d,
+    salinity: s,
+    turbidity: tb,
+  });
+  if (issues.critical.length > 0) return "CRITICAL";
+  if (issues.warning.length > 0) return "WARNING";
 
   return null;
 }
@@ -202,17 +250,15 @@ export async function POST(request: NextRequest) {
 
     const hasValidParams = Object.values(sensorParams).some((v) => v !== null && !isNaN(v as number));
 
-    // ── Severity: hitung dari sensor aktual, fallback dari TB ─────────────
-    let severity: "WARNING" | "CRITICAL" | null = null;
-    if (hasValidParams) {
+    // ── Severity: trust payload first, fallback to computed ───────────────
+    let severity: "WARNING" | "CRITICAL" | null =
+      toSeverity(payload?.severity) ||
+      toSeverity(details?.severity) ||
+      toSeverity(metadata?.severity) ||
+      toSeverity(body?.severity);
+
+    if (!severity && hasValidParams) {
       severity = computeSeverity(sensorParams);
-    }
-    if (!severity) {
-      severity =
-        toSeverity(payload?.severity) ||
-        toSeverity(details?.severity) ||
-        toSeverity(metadata?.severity) ||
-        toSeverity(body?.severity);
     }
 
     if (!severity) {
@@ -220,9 +266,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Build message ──────────────────────────────────────────────────────
-    const message = hasValidParams
-      ? buildSensorMessage(severity, sensorParams)
-      : String(payload?.message || `${severity} Water Quality`).trim();
+    const message = String(
+      payload?.message ||
+        (hasValidParams
+          ? buildSensorMessage(severity, sensorParams)
+          : `${severity} Water Quality`),
+    ).trim();
 
     let status = toStatus(rawStatus);
     // Jika tidak ada explicit status namun ada severity + parameter valid,
@@ -230,8 +279,9 @@ export async function POST(request: NextRequest) {
     if (!explicitStatus && hasValidParams && status === "ACKNOWLEDGED") {
       status = "ACTIVE";
     }
-    const action = payload?.action ||
-      (severity === "CRITICAL" ? "SEGERA CEK TAMBAK!" : "Perlu pengecekan");
+    const action =
+      payload?.action ||
+      (severity === "CRITICAL" ? "CHECK POND IMMEDIATELY!" : "Needs inspection");
     const eventTime = toDate(payload?.timestamp || payload?.createdTime || body?.timestamp);
     const tbAlarmId =
       String(payload?.alarmId || payload?.id?.id || metadata?.alarmId || "").trim() || null;
@@ -383,6 +433,7 @@ export async function POST(request: NextRequest) {
           severity,
           pondName: device.pond.name,
           deviceId: tbDeviceId,
+          deviceName: device.name,
           message,
           action,
           status,

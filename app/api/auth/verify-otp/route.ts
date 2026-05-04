@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
 
     if (!email || !otp) {
       return NextResponse.json(
-        { error: 'Email dan OTP harus diisi' },
+        { error: 'Email and OTP are required' },
         { status: 400 }
       );
     }
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     if (!otpRecord) {
       return NextResponse.json(
-        { error: 'Kode OTP tidak valid atau sudah kadaluarsa' },
+        { error: 'OTP code is invalid or has expired' },
         { status: 400 }
       );
     }
@@ -35,12 +35,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'OTP berhasil diverifikasi',
+      message: 'OTP verified successfully',
     });
   } catch (error) {
     console.error('Verify OTP error:', error);
     return NextResponse.json(
-      { error: 'Terjadi kesalahan. Silakan coba lagi.' },
+      { error: 'Something went wrong. Please try again.' },
       { status: 500 }
     );
   }

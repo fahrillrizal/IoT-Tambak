@@ -51,7 +51,7 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
         {/* Header */}
         <DashboardHeader
           title="Smart Feeder"
-          subtitle="Kontrol dan monitoring sistem pemberian pakan otomatis"
+          subtitle="Control and monitor the automatic feeding system"
         />
 
         {/* Device Selector */}
@@ -70,9 +70,9 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
             <div className="flex items-center gap-3">
               <Zap className="h-8 w-8 text-green-600" />
               <div>
-                <p className="text-sm text-gray-600">Status Sistem</p>
+                <p className="text-sm text-gray-600">System Status</p>
                 <p className="text-xl font-bold text-green-600">Online</p>
-                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Aktif</span>
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
               </div>
             </div>
           </CardContent>
@@ -83,7 +83,7 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
             <div className="flex items-center gap-3">
               <Battery className="h-8 w-8 text-blue-600" />
               <div>
-                <p className="text-sm text-gray-600">Level Baterai</p>
+                <p className="text-sm text-gray-600">Battery Level</p>
                 <p className="text-xl font-bold text-blue-600">87%</p>
               </div>
             </div>
@@ -95,7 +95,7 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
             <div className="flex items-center gap-3">
               <Package className="h-8 w-8 text-yellow-600" />
               <div>
-                <p className="text-sm text-gray-600">Stok Pakan</p>
+                <p className="text-sm text-gray-600">Feed Stock</p>
                 <p className="text-xl font-bold text-yellow-600">65%</p>
                 <div className="w-full bg-yellow-200 rounded-full h-1.5 mt-1">
                   <div className="bg-yellow-600 h-1.5 rounded-full" style={{ width: "65%" }}></div>
@@ -110,9 +110,9 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
             <div className="flex items-center gap-3">
               <Calendar className="h-8 w-8 text-purple-600" />
               <div>
-                <p className="text-sm text-gray-600">Total Hari Ini</p>
+                <p className="text-sm text-gray-600">Total Today</p>
                 <p className="text-xl font-bold text-purple-600">6.5 kg</p>
-                <p className="text-xs text-gray-500">Terakhir: 18:05</p>
+                <p className="text-xs text-gray-500">Last: 18:05</p>
               </div>
             </div>
           </CardContent>
@@ -126,20 +126,20 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Send className="h-5 w-5 text-cyan-600" />
-              Kontrol Manual
+              Manual Control
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Jumlah Pakan (kg)
+                  Feed Amount (kg)
                 </label>
                 <input
                   type="number"
                   value={manualAmount}
                   onChange={(e) => setManualAmount(e.target.value)}
-                  placeholder="Masukkan jumlah..."
+                  placeholder="Enter amount..."
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
               </div>
@@ -148,7 +148,7 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
                 className="w-full bg-cyan-600 hover:bg-cyan-700"
               >
                 <Send className="h-4 w-4 mr-2" />
-                Beri Pakan Sekarang
+                Feed Now
               </Button>
             </div>
           </CardContent>
@@ -160,11 +160,11 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Clock className="h-5 w-5 text-cyan-600" />
-                Jadwal Pemberian Pakan
+                Feeding Schedule
               </CardTitle>
               <Button variant="outline" size="sm">
                 <Plus className="h-4 w-4 mr-1" />
-                Tambah
+                Add
               </Button>
             </div>
           </CardHeader>
@@ -195,7 +195,7 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
                         : "bg-yellow-100 text-yellow-700"
                     }`}
                   >
-                    {schedule.status === "completed" ? "Selesai" : "Terjadwal"}
+                    {schedule.status === "completed" ? "Completed" : "Scheduled"}
                   </span>
                 </div>
               ))}
@@ -207,25 +207,25 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
       {/* Statistics */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Statistik Pemberian Pakan</CardTitle>
+          <CardTitle className="text-lg">Feeding Statistics</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <p className="text-3xl font-bold text-cyan-600">28</p>
-              <p className="text-sm text-gray-600">Total Sesi</p>
+              <p className="text-sm text-gray-600">Total Sessions</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <p className="text-3xl font-bold text-cyan-600">45.2kg</p>
-              <p className="text-sm text-gray-600">Total Pakan</p>
+              <p className="text-sm text-gray-600">Total Feed</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <p className="text-3xl font-bold text-cyan-600">6.5kg</p>
-              <p className="text-sm text-gray-600">Rata-rata/hari</p>
+              <p className="text-sm text-gray-600">Avg/Day</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <p className="text-3xl font-bold text-green-600">98%</p>
-              <p className="text-sm text-gray-600">Keberhasilan</p>
+              <p className="text-sm text-gray-600">Success Rate</p>
             </div>
           </div>
         </CardContent>

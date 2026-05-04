@@ -22,27 +22,27 @@ const STATUS_CONFIG: Record<FeedingStatus, {
     bgColor: "bg-green-50",
     borderColor: "border-green-200",
     iconColor: "text-green-600",
-    label: "Selesai",
+    label: "Completed",
   },
   pending: {
     icon: Clock,
     bgColor: "bg-blue-50",
     borderColor: "border-blue-200",
     iconColor: "text-blue-600",
-    label: "Terjadwal",
+    label: "Scheduled",
   },
   skipped: {
     icon: AlertTriangle,
     bgColor: "bg-yellow-50",
     borderColor: "border-yellow-200",
     iconColor: "text-yellow-600",
-    label: "Terlewat",
+    label: "Missed",
   },
 };
 
 export default function FeedingScheduleCard({ 
   schedules, 
-  title = "Status Smart Feeder Hari Ini" 
+  title = "Today's Smart Feeder Status" 
 }: FeedingScheduleCardProps) {
   return (
     <Card className="bg-white">
@@ -52,7 +52,7 @@ export default function FeedingScheduleCard({
           <CardTitle className="text-base">{title}</CardTitle>
         </div>
         <CardDescription className="text-gray-500">
-          Jadwal pemberian pakan otomatis
+          Automatic feeding schedule
         </CardDescription>
       </CardHeader>
       <CardContent>

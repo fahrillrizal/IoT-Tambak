@@ -38,7 +38,7 @@ export default function DashboardPageClient({ defaultCollapsed }: DashboardPageC
       <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-1">Dashboard</h2>
-          <p className="text-sm lg:text-base text-gray-500">Monitoring harian tambak udang Anda</p>
+          <p className="text-sm lg:text-base text-gray-500">Daily monitoring of your shrimp ponds</p>
         </div>
         <PondSelector devices={devices} selectedDevice={selectedDevice} onDeviceChange={setSelectedDevice} />
       </div>
@@ -90,9 +90,9 @@ export default function DashboardPageClient({ defaultCollapsed }: DashboardPageC
       ) : (
         <div className="mb-20 lg:mb-0">
           <div className="bg-white border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-600">
-            <p className="text-lg font-semibold text-gray-800 mb-2">Belum ada perangkat</p>
-            <p className="text-sm mb-2">Tambahkan perangkat terlebih dahulu atau Scan QR perangkat Anda.</p>
-            <p className="text-xs text-gray-500">Tombol "Add Device" ada di bagian kanan atas.</p>
+            <p className="text-lg font-semibold text-gray-800 mb-2">No devices yet</p>
+            <p className="text-sm mb-2">Add a device first or scan your device QR code.</p>
+            <p className="text-xs text-gray-500">The "Add Device" button is in the top-right corner.</p>
           </div>
         </div>
       )}

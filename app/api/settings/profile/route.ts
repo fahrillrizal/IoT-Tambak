@@ -27,7 +27,7 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json(
-        { error: "User tidak ditemukan" },
+        { error: "User not found" },
         { status: 404 }
       );
     }
@@ -35,7 +35,7 @@ export async function GET() {
     return NextResponse.json(user);
   } catch (e: any) {
     console.error("Get profile error", e);
-    return NextResponse.json({ error: "Terjadi kesalahan" }, { status: 500 });
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }
 
@@ -66,7 +66,7 @@ export async function PATCH(req: Request) {
       });
       if (existingUser) {
         return NextResponse.json(
-          { error: "Username sudah digunakan" },
+          { error: "Username already taken" },
           { status: 400 }
         );
       }
@@ -87,7 +87,7 @@ export async function PATCH(req: Request) {
       updatePayload.image = data.image;
 
     if (Object.keys(updatePayload).length === 0) {
-      return NextResponse.json({ message: "Tidak ada perubahan" });
+      return NextResponse.json({ message: "No changes" });
     }
 
     const user = await prisma.user.update({
@@ -106,9 +106,9 @@ export async function PATCH(req: Request) {
       },
     });
 
-    return NextResponse.json({ message: "Profil berhasil diperbarui", user });
+    return NextResponse.json({ message: "Profile updated successfully", user });
   } catch (e: any) {
     console.error("Profile update error", e);
-    return NextResponse.json({ error: "Terjadi kesalahan" }, { status: 500 });
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

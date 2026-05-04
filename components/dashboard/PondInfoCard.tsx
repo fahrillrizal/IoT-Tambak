@@ -12,7 +12,7 @@ interface PondInfoCardProps {
 
 export default function PondInfoCard({ 
   device, 
-  location = "Kolam A1" 
+  location = "Pond A1" 
 }: PondInfoCardProps) {
   return (
     <Card className="bg-white border border-gray-200">

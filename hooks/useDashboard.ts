@@ -25,25 +25,28 @@ function calculateStatus(
   }
 
   if (
-    (t !== undefined && t !== null && (t < 26 || t > 32)) ||
-    (p !== undefined && p !== null && (p < 7.5 || p > 8.5)) ||
-    (d !== undefined && d !== null && (d < 4 || d > 8)) ||
-    (s !== undefined && s !== null && (s < 10 || s > 35)) ||
+    (t !== undefined && t !== null && (t < 24 || t > 32)) ||
+    (p !== undefined && p !== null && (p < 6.0 || p > 8.4)) ||
+    (d !== undefined && d !== null && d < 4.9) ||
+    (s !== undefined && s !== null && (s < 8 || s > 35)) ||
     (data.turbidity !== undefined &&
       data.turbidity !== null &&
-      data.turbidity > 80)
+      data.turbidity > 40)
   ) {
     return "Critical";
   }
 
   if (
-    (t !== undefined && t !== null && (t < 27 || t > 31)) ||
-    (p !== undefined && p !== null && (p < 7.8 || p > 8.2)) ||
-    (d !== undefined && d !== null && (d < 5 || d > 7.5)) ||
-    (s !== undefined && s !== null && (s < 15 || s > 30)) ||
+    (t !== undefined && t !== null && (t === 25 || t === 31)) ||
+    (p !== undefined && p !== null && (p < 7.0 || p > 8.0)) ||
+    (d !== undefined && d !== null && d < 5 && d >= 4.9) ||
+    (s !== undefined &&
+      s !== null &&
+      (s < 10 || (s > 30 && s <= 35))) ||
     (data.turbidity !== undefined &&
       data.turbidity !== null &&
-      (data.turbidity < 10 || data.turbidity > 50))
+      data.turbidity > 25 &&
+      data.turbidity <= 40)
   ) {
     return "Warning";
   }

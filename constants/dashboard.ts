@@ -49,13 +49,13 @@ export const PARAMETER_THRESHOLDS = {
   turbidity: { max: 50 },
 } as const;
 
-export const WEEK_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+export const WEEK_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export const TREND_CHART_DATA: ChartData = {
   labels: WEEK_LABELS,
   datasets: [
     {
-      label: "Suhu (°C)",
+      label: "Temperature (°C)",
       data: [28.5, 28.2, 28.8, 28.3, 28.6, 28.4, 28.7],
       borderColor: "rgb(59, 130, 246)",
       backgroundColor: "transparent",
@@ -71,7 +71,7 @@ export const TREND_CHART_DATA: ChartData = {
       fill: false,
     },
     {
-      label: "Oksigen (mg/L)",
+      label: "Dissolved Oxygen (mg/L)",
       data: [7.1, 6.9, 7.2, 6.8, 7.0, 6.9, 6.9],
       borderColor: "rgb(16, 185, 129)",
       backgroundColor: "transparent",
@@ -79,7 +79,7 @@ export const TREND_CHART_DATA: ChartData = {
       fill: false,
     },
     {
-      label: "Salinitas (ppt)",
+      label: "Salinity (ppt)",
       data: [25.3, 25.8, 26.1, 25.9, 26.2, 25.6, 25.7],
       borderColor: "rgb(6, 182, 212)",
       backgroundColor: "transparent",
@@ -101,7 +101,7 @@ export const FEEDING_CHART_DATA: ChartData = {
   labels: WEEK_LABELS,
   datasets: [
     {
-      label: "Frekuensi Pemberian Pakan",
+      label: "Feeding Frequency",
       data: [3, 4, 3, 4, 3, 4, 3],
       backgroundColor: "rgba(139, 92, 246, 0.8)",
       borderColor: "rgba(139, 92, 246, 0.8)",
@@ -163,7 +163,7 @@ export const SAMPLE_ACTIVITY_LOGS: ActivityLog[] = [
     date: "7/8/2024",
     time: "14:30",
     type: "alert",
-    message: "Suhu tinggi: 32.5°C",
+    message: "High temperature: 32.5°C",
     severity: "high",
   },
   {
@@ -171,7 +171,7 @@ export const SAMPLE_ACTIVITY_LOGS: ActivityLog[] = [
     date: "7/8/2024",
     time: "12:15",
     type: "reading",
-    message: "pH: 7.2, Suhu: 28.5°C, DO: 6.8mg/L, Salinitas: 25.7ppt",
+    message: "pH: 7.2, Temp: 28.5°C, DO: 6.8 mg/L, Salinity: 25.7 ppt",
     severity: "normal",
   },
   {
@@ -179,7 +179,7 @@ export const SAMPLE_ACTIVITY_LOGS: ActivityLog[] = [
     date: "7/8/2024",
     time: "10:30",
     type: "alert",
-    message: "Salinitas rendah: 22.1ppt",
+    message: "Low salinity: 22.1 ppt",
     severity: "medium",
   },
   {
@@ -187,7 +187,7 @@ export const SAMPLE_ACTIVITY_LOGS: ActivityLog[] = [
     date: "7/8/2024",
     time: "08:00",
     type: "maintenance",
-    message: "Kalibrasi sensor pH",
+    message: "pH sensor calibration",
     severity: "info",
   },
   {
@@ -195,7 +195,7 @@ export const SAMPLE_ACTIVITY_LOGS: ActivityLog[] = [
     date: "6/8/2024",
     time: "18:45",
     type: "alert",
-    message: "DO rendah: 4.2mg/L",
+    message: "Low DO: 4.2 mg/L",
     severity: "medium",
   },
   {
@@ -203,7 +203,7 @@ export const SAMPLE_ACTIVITY_LOGS: ActivityLog[] = [
     date: "6/8/2024",
     time: "09:30",
     type: "reading",
-    message: "pH: 7.1, Suhu: 27.8°C, DO: 6.9mg/L, Salinitas: 26.1ppt",
+    message: "pH: 7.1, Temp: 27.8°C, DO: 6.9 mg/L, Salinity: 26.1 ppt",
     severity: "normal",
   },
 ];

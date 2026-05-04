@@ -39,14 +39,14 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
       const res = await fetch("/api/settings/telegram/connect");
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setTelegramError(data.error || "Gagal memuat status Telegram");
+        setTelegramError(data.error || "Failed to load Telegram status");
         setTelegramConnected(false);
         return;
       }
       const data = await res.json();
       setTelegramConnected(Boolean(data.connected));
     } catch (e) {
-      setTelegramError("Gagal memuat status Telegram");
+      setTelegramError("Failed to load Telegram status");
       setTelegramConnected(false);
     }
   };
@@ -64,18 +64,18 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
 
   const handleLinkGoogle = async () => {
     const confirmed = await confirm({
-      title: "Link Akun Google",
-      message: `Link Google hanya berhasil jika email Google Anda sama dengan email akun ini (${session?.user?.email}).\n\nJika email berbeda, Anda akan login sebagai akun Google tersebut.`,
+      title: "Link Google Account",
+      message: `Google linking works only if your Google email matches this account email (${session?.user?.email}).\n\nIf the email is different, you will sign in as that Google account.`,
       type: "info",
-      confirmText: "Lanjutkan",
-      cancelText: "Batal",
+      confirmText: "Continue",
+      cancelText: "Cancel",
     });
     if (!confirmed) return;
     setLoadingAction(true);
     try {
       await signIn("google", { callbackUrl: "/settings" });
     } catch (e) {
-      console.error("Gagal menghubungkan akun Google");
+      console.error("Failed to link Google account");
     } finally {
       setLoadingAction(false);
     }
@@ -83,11 +83,11 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
 
   const handleUnlinkGoogle = async () => {
     const confirmed = await confirm({
-      title: "Unlink Akun Google",
-      message: "Yakin ingin memutuskan hubungan akun Google?\n\nAnda tidak akan bisa login menggunakan Google setelah ini.",
+      title: "Unlink Google Account",
+      message: "Are you sure you want to unlink your Google account?\n\nYou will no longer be able to sign in with Google.",
       type: "danger",
-      confirmText: "Ya, Unlink",
-      cancelText: "Batal",
+      confirmText: "Yes, unlink",
+      cancelText: "Cancel",
     });
     if (!confirmed) return;
     setLoadingAction(true);
@@ -95,7 +95,7 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
       const res = await fetch("/api/settings/account/google", { method: "DELETE" });
       if (res.ok) refreshGoogleStatus();
     } catch (e) {
-      console.error("Terjadi kesalahan");
+      console.error("Something went wrong");
     } finally {
       setLoadingAction(false);
     }
@@ -108,7 +108,7 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
       const res = await fetch("/api/settings/telegram/connect", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setTelegramError(data.error || "Gagal membuat koneksi Telegram");
+        setTelegramError(data.error || "Failed to create Telegram connection");
         return;
       }
 
@@ -121,7 +121,7 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
 
       await refreshTelegramStatus();
     } catch (e) {
-      setTelegramError("Gagal membuat koneksi Telegram");
+      setTelegramError("Failed to create Telegram connection");
     } finally {
       setTelegramLoading(false);
     }
@@ -142,8 +142,8 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
     <DashboardLayout activeMenu="settings" defaultCollapsed={defaultCollapsed}>
       <div className="max-w-4xl mx-auto px-4 py-6 mb-20 lg:mb-0">
         <div className="mb-6">
-          <h2 className="text-3xl font-bold text-gray-900 mb-1">Pengaturan Akun</h2>
-          <p className="text-gray-500">Kelola profil dan keamanan akun Anda</p>
+          <h2 className="text-3xl font-bold text-gray-900 mb-1">Account Settings</h2>
+          <p className="text-gray-500">Manage your profile and account security</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -165,41 +165,41 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
               </div>
               <h2 className="text-lg font-semibold text-gray-900">{session.user.name || session.user.email}</h2>
               <p className="text-sm text-gray-500 mb-4">{session.user.email}</p>
-              <p className="text-xs text-gray-500 mb-4">Kelola informasi profil, foto, dan alamat akun Anda.</p>
+              <p className="text-xs text-gray-500 mb-4">Manage your profile info, photo, and address.</p>
               <button
                 onClick={() => router.push("/settings/profile")}
                 className="text-sm font-medium text-blue-600 hover:text-blue-700 px-4 py-2 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
               >
-                Edit Profil
+                Edit Profile
               </button>
             </div>
           </div>
 
           {/* Security & Login Card */}
           <div className="bg-white border border-gray-200 rounded-lg p-6 flex flex-col gap-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">Keamanan & Login</h2>
-            <p className="text-sm text-gray-500 mb-2">Atur password dan koneksi login dengan akun Google Anda.</p>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Security & Sign-in</h2>
+            <p className="text-sm text-gray-500 mb-2">Manage your password and Google sign-in connection.</p>
 
             <div className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3 bg-gray-50">
               <div>
-                <p className="text-sm font-medium text-gray-900">Password Akun</p>
-                <p className="text-xs text-gray-500">Disarankan menggunakan password kuat dan unik.</p>
+                <p className="text-sm font-medium text-gray-900">Account Password</p>
+                <p className="text-xs text-gray-500">Use a strong, unique password.</p>
               </div>
-              <button onClick={() => router.push("/settings/password")} className="text-sm font-medium text-indigo-600 hover:text-indigo-700">Ubah</button>
+              <button onClick={() => router.push("/settings/password")} className="text-sm font-medium text-indigo-600 hover:text-indigo-700">Change</button>
             </div>
 
             <div className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3 bg-gray-50">
               <div>
-                <p className="text-sm font-medium text-gray-900">Login dengan Google</p>
+                <p className="text-sm font-medium text-gray-900">Sign in with Google</p>
                 {googleLinked === null ? (
                   <p className="text-xs text-gray-500 flex items-center gap-2">
                     <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
-                    Memeriksa status koneksi...
+                    Checking connection status...
                   </p>
                 ) : googleLinked ? (
-                  <p className="text-xs text-green-600">Terkoneksi dengan akun Google.</p>
+                  <p className="text-xs text-green-600">Connected to Google.</p>
                 ) : (
-                  <p className="text-xs text-gray-500">Belum terhubung ke akun Google.</p>
+                  <p className="text-xs text-gray-500">Not connected to Google.</p>
                 )}
               </div>
               {googleLinked !== null && (
@@ -210,23 +210,23 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
                     googleLinked ? "border-red-200 text-red-600 hover:bg-red-50" : "border-gray-300 text-gray-700 hover:bg-gray-50"
                   }`}
                 >
-                  {loadingAction ? "Memproses..." : googleLinked ? "Putuskan" : "Hubungkan"}
+                  {loadingAction ? "Processing..." : googleLinked ? "Disconnect" : "Connect"}
                 </button>
               )}
             </div>
 
             <div className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3 bg-gray-50">
               <div>
-                <p className="text-sm font-medium text-gray-900">Notifikasi Telegram</p>
+                <p className="text-sm font-medium text-gray-900">Telegram Notifications</p>
                 {telegramConnected === null ? (
                   <p className="text-xs text-gray-500 flex items-center gap-2">
                     <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
-                    Memeriksa status koneksi...
+                    Checking connection status...
                   </p>
                 ) : telegramConnected ? (
-                  <p className="text-xs text-green-600">Terkoneksi dengan Telegram.</p>
+                  <p className="text-xs text-green-600">Connected to Telegram.</p>
                 ) : (
-                  <p className="text-xs text-gray-500">Belum terhubung ke Telegram.</p>
+                  <p className="text-xs text-gray-500">Not connected to Telegram.</p>
                 )}
                 {telegramError && (
                   <p className="text-xs text-red-600 mt-1">{telegramError}</p>
@@ -238,7 +238,7 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
                   disabled={telegramLoading}
                   className="text-xs font-medium px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
-                  {telegramLoading ? "Memproses..." : telegramConnected ? "Hubungkan Ulang" : "Hubungkan"}
+                  {telegramLoading ? "Processing..." : telegramConnected ? "Reconnect" : "Connect"}
                 </button>
               )}
             </div>
@@ -251,7 +251,7 @@ export default function SettingsPageClient({ defaultCollapsed }: SettingsPageCli
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setShowImageModal(false)}>
           <div className="relative max-w-5xl w-full">
             <button onClick={() => setShowImageModal(false)} className="absolute -top-14 right-0 flex items-center gap-2 text-white hover:text-gray-300 transition-colors px-4 py-2 rounded-lg hover:bg-white/10">
-              <X className="h-5 w-5" /><span className="text-sm font-medium">Tutup</span>
+              <X className="h-5 w-5" /><span className="text-sm font-medium">Close</span>
             </button>
             <div className="bg-white rounded-lg p-2">
               <img src={session.user.image} alt="Profile preview" className="w-full h-auto max-h-[80vh] object-contain rounded" onClick={(e) => e.stopPropagation()} />

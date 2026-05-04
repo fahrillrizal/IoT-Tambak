@@ -13,7 +13,7 @@ interface TrendChartProps {
 
 export default function TrendChart({
   data = TREND_CHART_DATA,
-  title = "Tren Kualitas Air (7 Hari)",
+  title = "Water Quality Trend (7 Days)",
 }: TrendChartProps) {
   return (
     <Card className="bg-white">
@@ -22,7 +22,7 @@ export default function TrendChart({
           {title}
         </CardTitle>
         <CardDescription className="text-gray-500">
-          Monitoring parameter kualitas air
+          Water quality parameter monitoring
         </CardDescription>
       </CardHeader>
       <CardContent>

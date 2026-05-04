@@ -15,7 +15,7 @@ export async function sendTelegramMessage(
 ): Promise<boolean> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) {
-    console.error("[Telegram] TELEGRAM_BOT_TOKEN tidak dikonfigurasi");
+    console.error("[Telegram] TELEGRAM_BOT_TOKEN is not configured");
     return false;
   }
 
@@ -50,24 +50,26 @@ export function buildAlertTelegramMessage(input: {
   severity: "WARNING" | "CRITICAL";
   pondName?: string | null;
   deviceId: string;
+  deviceName?: string | null;
   message: string;
   action?: string | null;
   status: "ACTIVE" | "CLEARED" | "ACKNOWLEDGED";
   eventTime: Date;
 }): string {
+  const deviceLabel = input.deviceName?.trim() || input.deviceId;
   const lines = [
     `ALERT ${input.severity}`,
-    `Kolam: ${input.pondName || "Kolam"}`,
-    `Device: ${input.deviceId}`,
+    `Pond: ${input.pondName || "Pond"}`,
+    `Device: ${deviceLabel}`,
     `Status: ${input.status}`,
-    `Pesan: ${input.message}`,
+    `Message: ${input.message}`,
   ];
 
   if (input.action) {
-    lines.push(`Aksi: ${input.action}`);
+    lines.push(`Action: ${input.action}`);
   }
 
-  lines.push(`Waktu: ${input.eventTime.toLocaleString("id-ID")}`);
+  lines.push(`Time: ${input.eventTime.toLocaleString("en-US")}`);
 
   return lines.join("\n");
 }

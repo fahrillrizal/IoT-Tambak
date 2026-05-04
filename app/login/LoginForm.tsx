@@ -63,7 +63,7 @@ export default function LoginForm() {
       });
 
       if (result?.error) {
-        setError("Email atau password salah");
+        setError("Invalid email or password");
         setIsLoading(false);
         return;
       }
@@ -72,7 +72,7 @@ export default function LoginForm() {
         window.location.href = redirectUrl;
       }
     } catch (err) {
-      setError("Terjadi kesalahan. Silakan coba lagi.");
+      setError("Something went wrong. Please try again.");
       setIsLoading(false);
     }
   };
@@ -93,7 +93,7 @@ export default function LoginForm() {
           </div>
           <CardTitle className="text-2xl font-bold">IoT Tambak</CardTitle>
           <CardDescription>
-            Masuk ke akun Anda untuk memantau tambak
+            Sign in to monitor your ponds
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -156,7 +156,7 @@ export default function LoginForm() {
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Memproses..." : "Masuk"}
+              {isLoading ? "Processing..." : "Sign in"}
             </Button>
 
             <div className="text-right">
@@ -164,7 +164,7 @@ export default function LoginForm() {
                 href="/forgot-password"
                 className="text-sm text-blue-600 hover:underline"
               >
-                Lupa password?
+                Forgot password?
               </Link>
             </div>
           </form>
@@ -175,7 +175,7 @@ export default function LoginForm() {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-white px-2 text-gray-500">
-                Atau lanjutkan dengan
+                Or continue with
               </span>
             </div>
           </div>
@@ -188,17 +188,17 @@ export default function LoginForm() {
             className="w-full"
           >
             <GoogleIcon className="mr-2 h-4 w-4" />
-            Lanjutkan dengan Google
+            Continue with Google
           </Button>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-sm text-center text-gray-600">
-            Belum punya akun?{" "}
+            Don't have an account?{" "}
             <Link
               href="/register"
               className="text-blue-600 hover:underline font-medium"
             >
-              Daftar sekarang
+              Register now
             </Link>
           </div>
         </CardFooter>

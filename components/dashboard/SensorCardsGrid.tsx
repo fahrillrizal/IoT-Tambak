@@ -15,24 +15,24 @@ function getStatus(value: number | null, param: keyof typeof PARAMETER_THRESHOLD
 
   switch (param) {
     case "temperature":
-      if (value < 26 || value > 32) return "Critical";
-      if (value < 27 || value > 31) return "Warning";
+      if (value < 24 || value > 32) return "Critical";
+      if (value === 25 || value === 31) return "Warning";
       return "Normal";
     case "ph":
-      if (value < 7.5 || value > 8.5) return "Critical";
-      if (value < 7.8 || value > 8.2) return "Warning";
+      if (value < 6.0 || value > 8.4) return "Critical";
+      if (value < 7.0 || value > 8.0) return "Warning";
       return "Normal";
     case "dissolvedOxygen":
-      if (value < 4 || value > 8) return "Critical";
-      if (value < 5 || value > 7.5) return "Warning";
+      if (value < 4.9) return "Critical";
+      if (value < 5 && value >= 4.9) return "Warning";
       return "Normal";
     case "salinity":
-      if (value < 10 || value > 35) return "Critical";
-      if (value < 15 || value > 30) return "Warning";
+      if (value < 8 || value > 35) return "Critical";
+      if (value < 10 || (value > 30 && value <= 35)) return "Warning";
       return "Normal";
     case "turbidity":
-      if (value > 80) return "Critical";
-      if (value > 50 || value < 10) return "Warning";
+      if (value > 40) return "Critical";
+      if (value > 25 && value <= 40) return "Warning";
       return "Normal";
     default:
       return "Normal";
@@ -42,7 +42,7 @@ function getStatus(value: number | null, param: keyof typeof PARAMETER_THRESHOLD
 export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
   const sensors = [
     {
-      title: "Suhu Air",
+      title: "Water Temperature",
       value: sensorData.temperature ?? "-",
       unit: "°C",
       status: getStatus(sensorData.temperature, "temperature"),
@@ -50,7 +50,7 @@ export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
       colorScheme: "blue" as const,
     },
     {
-      title: "pH Air",
+      title: "Water pH",
       value: sensorData.ph ?? "-",
       unit: "",
       status: getStatus(sensorData.ph, "ph"),
@@ -58,7 +58,7 @@ export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
       colorScheme: "green" as const,
     },
     {
-      title: "Oksigen Terlarut",
+      title: "Dissolved Oxygen",
       value: sensorData.dissolvedOxygen ?? "-",
       unit: " mg/L",
       status: getStatus(sensorData.dissolvedOxygen, "dissolvedOxygen"),
@@ -66,7 +66,7 @@ export default function SensorCardsGrid({ sensorData }: SensorCardsGridProps) {
       colorScheme: "cyan" as const,
     },
     {
-      title: "Salinitas",
+      title: "Salinity",
       value: sensorData.salinity ?? "-",
       unit: " ppt",
       status: getStatus(sensorData.salinity, "salinity"),

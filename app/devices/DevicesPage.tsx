@@ -402,7 +402,7 @@ export default function DevicesPageClient({
                         Device ID (ThingsBoard)
                       </label>
                       <div className="mt-1 bg-gray-100 p-2 rounded text-xs font-mono break-all">
-                        {selectedTbId || "(tidak ada)"}
+                        {selectedTbId || "(none)"}
                       </div>
                     </div>
 

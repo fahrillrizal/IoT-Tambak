@@ -29,9 +29,9 @@ export async function DELETE() {
       where: { userId: Number(session.user.id), provider: 'google' },
     });
 
-    return NextResponse.json({ message: 'Akun Google berhasil di-unlink' });
+    return NextResponse.json({ message: 'Google account unlinked successfully' });
   } catch (e: any) {
     console.error('Unlink google error', e);
-    return NextResponse.json({ error: 'Terjadi kesalahan' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

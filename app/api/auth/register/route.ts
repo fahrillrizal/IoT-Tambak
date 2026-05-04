@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
         {
           error:
             existingUser.email === validatedData.email
-              ? "Email sudah terdaftar"
-              : "Username sudah digunakan",
+              ? "Email is already registered"
+              : "Username is already taken",
         },
         { status: 400 }
       );
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "Registrasi berhasil",
+        message: "Registration successful",
         user,
       },
       { status: 201 }
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     if (error.name === "ZodError") {
       return NextResponse.json(
         {
-          error: "Data tidak valid",
+          error: "Invalid data",
           details: error.errors,
         },
         { status: 400 }
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Terjadi kesalahan saat registrasi" },
+      { error: "An error occurred during registration" },
       { status: 500 }
     );
   }

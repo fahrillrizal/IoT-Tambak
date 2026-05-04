@@ -6,14 +6,14 @@ import { z } from 'zod';
 const setPasswordSchema = z.object({
   password: z
     .string()
-    .min(6, 'Password minimal 6 karakter')
-    .max(12, 'Password maksimal 12 karakter')
-    .refine(val => /[A-Z]/.test(val), 'Password harus mengandung huruf besar')
-    .refine(val => /[a-z]/.test(val), 'Password harus mengandung huruf kecil')
-    .refine(val => /\d/.test(val), 'Password harus mengandung angka'),
+    .min(6, 'Password must be at least 6 characters')
+    .max(12, 'Password must be at most 12 characters')
+    .refine(val => /[A-Z]/.test(val), 'Password must include an uppercase letter')
+    .refine(val => /[a-z]/.test(val), 'Password must include a lowercase letter')
+    .refine(val => /\d/.test(val), 'Password must include a number'),
   confirmPassword: z.string(),
 }).refine(data => data.password === data.confirmPassword, {
-  message: 'Konfirmasi password tidak cocok',
+  message: 'Password confirmation does not match',
   path: ['confirmPassword'],
 });
 
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     });
 
     if (user?.password) {
-      return NextResponse.json({ error: 'Anda sudah memiliki password. Gunakan fitur reset password.' }, { status: 400 });
+      return NextResponse.json({ error: 'You already have a password. Use password reset instead.' }, { status: 400 });
     }
 
     // Set new password
@@ -47,9 +47,9 @@ export async function POST(req: Request) {
       data: { password: hashedPassword }
     });
 
-    return NextResponse.json({ message: 'Password berhasil dibuat' });
+    return NextResponse.json({ message: 'Password created successfully' });
   } catch (e: any) {
     console.error('Set password error', e);
-    return NextResponse.json({ error: 'Terjadi kesalahan' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

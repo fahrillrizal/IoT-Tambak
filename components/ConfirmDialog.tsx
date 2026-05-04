@@ -111,13 +111,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 onClick={handleCancel}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                {options.cancelText || 'Batal'}
+                {options.cancelText || 'Cancel'}
               </button>
               <button
                 onClick={handleConfirm}
                 className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${getButtonStyles(options.type)}`}
               >
-                {options.confirmText || 'Ya, Lanjutkan'}
+                {options.confirmText || 'Yes, continue'}
               </button>
             </div>
           </div>

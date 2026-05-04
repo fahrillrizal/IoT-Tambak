@@ -74,7 +74,7 @@ export default function RegisterForm() {
     try {
       await signIn(provider, { callbackUrl: '/' });
     } catch (err) {
-      setError('Gagal mendaftar dengan ' + provider);
+      setError('Failed to register with ' + provider);
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +97,7 @@ export default function RegisterForm() {
       const result = await response.json();
 
       if (!response.ok) {
-        const msg = result.error || 'Terjadi kesalahan saat registrasi';
+        const msg = result.error || 'An error occurred during registration';
         // Jika email sudah terdaftar, coba login otomatis dengan credentials
         if (msg.toLowerCase().includes('email') && msg.toLowerCase().includes('terdaftar')) {
           const loginRes = await signIn('credentials', {
@@ -108,12 +108,12 @@ export default function RegisterForm() {
           if (loginRes?.error) {
             // Jika akun OAuth tanpa password
             if (loginRes.error.toLowerCase().includes('oauth')) {
-              setError('Email sudah terhubung ke akun OAuth. Silakan masuk dengan Google.');
+              setError('Email is already linked to an OAuth account. Please sign in with Google.');
             } else {
-              setError('Email sudah terdaftar. Password salah.');
+              setError('Email already registered. Incorrect password.');
             }
           } else {
-            setSuccess('Email sudah terdaftar. Login otomatis berhasil. Mengalihkan...');
+            setSuccess('Email already registered. Auto login successful. Redirecting...');
             router.push('/');
             router.refresh();
           }
@@ -121,14 +121,14 @@ export default function RegisterForm() {
           setError(msg);
         }
       } else {
-        setSuccess('Registrasi berhasil! Melakukan login...');
+        setSuccess('Registration successful! Signing in...');
         const loginRes = await signIn('credentials', {
           email: data.email,
           password: data.password,
           redirect: false,
         });
         if (loginRes?.error) {
-          setError('Registrasi sukses, tapi gagal login otomatis. Silakan login manual.');
+          setError('Registration succeeded, but auto login failed. Please sign in manually.');
           setSuccess('');
           router.push('/login');
         } else {
@@ -137,7 +137,7 @@ export default function RegisterForm() {
         }
       }
     } catch (err) {
-      setError('Terjadi kesalahan. Silakan coba lagi.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -152,9 +152,9 @@ export default function RegisterForm() {
               <Activity className="h-8 w-8 text-blue-600" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Daftar Akun Baru</CardTitle>
+          <CardTitle className="text-2xl font-bold">Create New Account</CardTitle>
           <CardDescription>
-            Lengkapi formulir di bawah untuk membuat akun
+            Fill out the form below to create an account
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -175,7 +175,7 @@ export default function RegisterForm() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nama Lengkap *</Label>
+                <Label htmlFor="name">Full Name *</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -259,7 +259,7 @@ export default function RegisterForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Konfirmasi Password *</Label>
+                <Label htmlFor="confirmPassword">Confirm Password *</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -290,7 +290,7 @@ export default function RegisterForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Nomor Telepon</Label>
+              <Label htmlFor="phone">Phone Number</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
@@ -309,7 +309,7 @@ export default function RegisterForm() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="province">Provinsi</Label>
+                <Label htmlFor="province">Province</Label>
                 <Select
                   onValueChange={(value) => {
                     setSelectedProvinceId(value);
@@ -319,7 +319,7 @@ export default function RegisterForm() {
                   disabled={isLoading}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih provinsi" />
+                    <SelectValue placeholder="Select province" />
                   </SelectTrigger>
                   <SelectContent>
                     {provinces.map((province) => (
@@ -335,13 +335,13 @@ export default function RegisterForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="city">Kota/Kabupaten</Label>
+                <Label htmlFor="city">City/Regency</Label>
                 <Select
                   onValueChange={(value) => setValue('cityId', parseInt(value))}
                   disabled={isLoading || !selectedProvinceId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih kota/kabupaten" />
+                    <SelectValue placeholder="Select city/regency" />
                   </SelectTrigger>
                   <SelectContent>
                     {cities.map((city) => (
@@ -358,7 +358,7 @@ export default function RegisterForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="address">Alamat Lengkap</Label>
+              <Label htmlFor="address">Full Address</Label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
@@ -375,7 +375,7 @@ export default function RegisterForm() {
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Memproses...' : 'Daftar'}
+              {isLoading ? 'Processing...' : 'Register'}
             </Button>
           </form>
 
@@ -384,7 +384,7 @@ export default function RegisterForm() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Atau</span>
+              <span className="bg-white px-2 text-gray-500">Or</span>
             </div>
           </div>
 
@@ -396,14 +396,14 @@ export default function RegisterForm() {
             className="w-full"
           >
             <GoogleIcon className="mr-2 h-4 w-4" />
-            Daftar dengan Google
+            Register with Google
           </Button>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-sm text-center text-gray-600">
-            Sudah punya akun?{' '}
+            Already have an account?{' '}
             <Link href="/login" className="text-blue-600 hover:underline font-medium">
-              Masuk di sini
+              Sign in here
             </Link>
           </div>
         </CardFooter>

@@ -16,7 +16,7 @@ interface FeedingChartProps {
 
 export default function FeedingChart({
   data = FEEDING_CHART_DATA,
-  title = "Frekuensi Pemberian Pakan",
+  title = "Feeding Frequency",
 }: FeedingChartProps) {
   return (
     <Card className="bg-white">
@@ -25,7 +25,7 @@ export default function FeedingChart({
           {title}
         </CardTitle>
         <CardDescription className="text-gray-500">
-          Jumlah pemberian pakan per hari
+          Number of feedings per day
         </CardDescription>
       </CardHeader>
       <CardContent>

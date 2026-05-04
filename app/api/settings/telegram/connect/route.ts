@@ -30,12 +30,12 @@ export async function GET() {
     console.error("Telegram status error:", error);
     if (isMissingTelegramColumnError(error)) {
       return NextResponse.json(
-        { error: "Kolom Telegram belum ada di database. Jalankan migration terlebih dulu." },
+        { error: "Telegram columns are missing in the database. Run migrations first." },
         { status: 500 },
       );
     }
     return NextResponse.json(
-      { error: "Gagal memuat status Telegram" },
+      { error: "Failed to load Telegram status" },
       { status: 500 },
     );
   }
@@ -68,11 +68,11 @@ export async function POST() {
     console.error("Telegram connect error:", error);
     if (isMissingTelegramColumnError(error)) {
       return NextResponse.json(
-        { error: "Kolom Telegram belum ada di database. Jalankan migration terlebih dulu." },
+        { error: "Telegram columns are missing in the database. Run migrations first." },
         { status: 500 },
       );
     }
-    const message = error instanceof Error ? error.message : "Gagal membuat koneksi Telegram";
+    const message = error instanceof Error ? error.message : "Failed to create Telegram connection";
     return NextResponse.json(
       { error: message },
       { status: 500 },

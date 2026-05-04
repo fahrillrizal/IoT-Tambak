@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const { email } = await request.json();
 
     if (!email) {
-      return NextResponse.json({ error: "Email harus diisi" }, { status: 400 });
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({
         success: true,
-        message: "Jika email terdaftar, Anda akan menerima kode OTP",
+        message: "If the email is registered, you will receive an OTP code",
       });
     }
 
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              "Batas pengiriman ulang OTP tercapai. Silakan coba lagi setelah 5 menit.",
+              "OTP resend limit reached. Please try again in 5 minutes.",
           },
           { status: 429 }
         );
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         );
         return NextResponse.json(
           {
-            error: `Mohon tunggu ${remainingSeconds} detik sebelum meminta OTP baru`,
+            error: `Please wait ${remainingSeconds} seconds before requesting a new OTP`,
             remainingSeconds,
           },
           { status: 429 }
@@ -76,14 +76,14 @@ export async function POST(request: NextRequest) {
 
       if (!emailSent) {
         return NextResponse.json(
-          { error: "Gagal mengirim email. Silakan coba lagi." },
+          { error: "Failed to send email. Please try again." },
           { status: 500 }
         );
       }
 
       return NextResponse.json({
         success: true,
-        message: "Kode OTP telah dikirim ulang ke email Anda",
+        message: "OTP code has been resent to your email",
         resendCount: existingOTP.resendCount + 1,
       });
     }
@@ -108,19 +108,19 @@ export async function POST(request: NextRequest) {
 
     if (!emailSent) {
       return NextResponse.json(
-        { error: "Gagal mengirim email. Silakan coba lagi." },
+        { error: "Failed to send email. Please try again." },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: "Kode OTP telah dikirim ke email Anda",
+      message: "OTP code has been sent to your email",
     });
   } catch (error) {
     console.error("Forgot password error:", error);
     return NextResponse.json(
-      { error: "Terjadi kesalahan. Silakan coba lagi." },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

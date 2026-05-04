@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const chatId = message?.chat?.id != null ? String(message.chat.id) : null;
     const text = (message?.text as string | undefined)?.trim();
-    const name = message?.chat?.first_name ?? "Pengguna";
+    const name = message?.chat?.first_name ?? "User";
 
     if (!chatId) return NextResponse.json({ ok: true });
 
@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
       if (!user) {
         await sendTelegramMessage(
           chatId,
-          `❌ Link sudah kadaluarsa atau tidak valid.\n\n` +
-            `Buka aplikasi TascaID → Profil → klik "Hubungkan Telegram" lagi untuk mendapat link baru.`,
+          `❌ Link expired or invalid.\n\n` +
+            `Open the TascaID app → Profile → click "Connect Telegram" again to get a new link.`,
         );
         return NextResponse.json({ ok: true });
       }
@@ -54,11 +54,11 @@ export async function POST(request: NextRequest) {
 
       await sendTelegramMessage(
         chatId,
-        `✅ Berhasil terhubung!\n\n` +
-          `Akun: ${user.name}\n` +
+        `✅ Connected successfully!\n\n` +
+          `Account: ${user.name}\n` +
           `Email: ${user.email}\n\n` +
-          `Kamu akan menerima notifikasi alert dari tambak di sini.\n\n` +
-          `Ketik /status untuk cek, /disconnect untuk memutuskan.`,
+          `You will receive pond alert notifications here.\n\n` +
+          `Type /status to check, /disconnect to unlink.`,
       );
       return NextResponse.json({ ok: true, connected: true });
     }
@@ -74,19 +74,19 @@ export async function POST(request: NextRequest) {
       if (existing) {
         await sendTelegramMessage(
           chatId,
-          `✅ Kamu sudah terhubung sebagai ${existing.name}.\n\n` +
-            `Ketik /status untuk info detail, /disconnect untuk memutuskan.`,
+          `✅ You are already connected as ${existing.name}.\n\n` +
+            `Type /status for details, /disconnect to unlink.`,
         );
       } else {
         await sendTelegramMessage(
           chatId,
-          `Halo ${name}! 👋\n\n` +
-            `Untuk menghubungkan akun TascaID:\n` +
-            `1. Buka aplikasi TascaID\n` +
-            `2. Pergi ke halaman Profil\n` +
-            `3. Klik "Hubungkan Telegram"\n` +
-            `4. Klik link yang muncul — kamu akan diarahkan ke sini otomatis\n\n` +
-            `Ketik /status untuk cek status koneksi.`,
+          `Hi ${name}! 👋\n\n` +
+            `To connect your TascaID account:\n` +
+            `1. Open the TascaID app\n` +
+            `2. Go to the Profile page\n` +
+            `3. Tap "Connect Telegram"\n` +
+            `4. Click the link — you will be redirected here automatically\n\n` +
+            `Type /status to check connection status.`,
         );
       }
       return NextResponse.json({ ok: true });
@@ -101,8 +101,8 @@ export async function POST(request: NextRequest) {
       await sendTelegramMessage(
         chatId,
         user
-          ? `✅ Terhubung!\n\nAkun: ${user.name}\nEmail: ${user.email}\n\nNotifikasi aktif.`
-          : `❌ Belum terhubung.\n\nBuka Profil TascaID → klik "Hubungkan Telegram".`,
+          ? `✅ Connected!\n\nAccount: ${user.name}\nEmail: ${user.email}\n\nNotifications are active.`
+          : `❌ Not connected.\n\nOpen TascaID Profile → click "Connect Telegram".`,
       );
       return NextResponse.json({ ok: true });
     }
@@ -120,16 +120,16 @@ export async function POST(request: NextRequest) {
         });
         await sendTelegramMessage(
           chatId,
-          `✅ Akun ${user.name} berhasil diputuskan.`,
+          `✅ Account ${user.name} disconnected successfully.`,
         );
       } else {
-        await sendTelegramMessage(chatId, `Tidak ada akun yang terhubung.`);
+        await sendTelegramMessage(chatId, `No account is connected.`);
       }
       return NextResponse.json({ ok: true });
     }
 
     // ── Pesan lain ─────────────────────────────────────────────────────────
-    await sendTelegramMessage(chatId, `Ketik /status untuk cek koneksi.`);
+    await sendTelegramMessage(chatId, `Type /status to check connection.`);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Telegram webhook error:", error);

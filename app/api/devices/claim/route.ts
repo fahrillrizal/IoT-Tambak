@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Device tidak ditemukan. Pastikan Anda sudah scan/menambahkan device terlebih dahulu melalui menu Tambah Device.",
+            "Device not found. Make sure you have scanned/added the device first via the Add Device menu.",
         },
         { status: 404 }
       );
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
         pondId: device.pond.id,
         pondName: device.pond.name,
         ownerEmail: undefined,
-        message: `Device dimiliki user lain. Klik Assign untuk mengakses device ini.`,
+        message: `Device belongs to another user. Click Assign to access this device.`,
         createdAt: device.createdAt,
         updatedAt: device.updatedAt,
       },

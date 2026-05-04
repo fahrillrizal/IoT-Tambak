@@ -8,14 +8,14 @@ export async function POST(request: NextRequest) {
 
     if (!email || !otp || !password) {
       return NextResponse.json(
-        { error: "Semua field harus diisi" },
+        { error: "All fields are required" },
         { status: 400 }
       );
     }
 
     if (password.length < 8) {
       return NextResponse.json(
-        { error: "Password minimal 8 karakter" },
+        { error: "Password must be at least 8 characters" },
         { status: 400 }
       );
     }
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     if (!otpRecord) {
       return NextResponse.json(
-        { error: "OTP tidak valid atau belum diverifikasi" },
+        { error: "OTP is invalid or not verified" },
         { status: 400 }
       );
     }
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: "User tidak ditemukan" },
+        { error: "User not found" },
         { status: 404 }
       );
     }
@@ -60,12 +60,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Password berhasil direset",
+      message: "Password reset successful",
     });
   } catch (error) {
     console.error("Reset password error:", error);
     return NextResponse.json(
-      { error: "Terjadi kesalahan. Silakan coba lagi." },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

@@ -46,13 +46,13 @@ function ClaimDevicePageInner() {
   const [useSamePond, setUseSamePond] = useState(true); // Default: use same pond
 
   const deviceIdLabel = useMemo(() => {
-    if (!deviceIdParam) return "(tidak ada)";
+    if (!deviceIdParam) return "(none)";
     return deviceIdParam;
   }, [deviceIdParam]);
 
   useEffect(() => {
     if (!deviceIdParam) {
-      setError("Device ID tidak ditemukan di QR");
+      setError("Device ID not found in the QR code");
       setLoading(false);
       return;
     }
@@ -73,14 +73,14 @@ function ClaimDevicePageInner() {
         if (!deviceRes.ok) {
           if (deviceRes.status === 404) {
             throw new Error(
-              "Device tidak ditemukan. Pastikan Anda sudah scan/menambahkan device terlebih dahulu melalui menu Tambah Device."
+              "Device not found. Make sure you have scanned/added the device first via the Add Device menu."
             );
           }
-          throw new Error(deviceJson.error || "Device tidak ditemukan");
+          throw new Error(deviceJson.error || "Device not found");
         }
 
         if (!pondsRes.ok) {
-          throw new Error(pondsJson.error || "Gagal mengambil data kolam");
+          throw new Error(pondsJson.error || "Failed to fetch ponds");
         }
 
         setDevice(deviceJson.data);
@@ -90,7 +90,7 @@ function ClaimDevicePageInner() {
           deviceJson.data?.pondId?.toString() || pondsJson.data?.[0]?.id?.toString() || ""
         );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Gagal memuat halaman klaim");
+        setError(err instanceof Error ? err.message : "Failed to load claim page");
       } finally {
         setLoading(false);
       }
@@ -101,7 +101,7 @@ function ClaimDevicePageInner() {
 
   const handleAssign = async () => {
     if (!deviceIdParam) {
-      setError("Device ID tidak tersedia");
+      setError("Device ID not available");
       return;
     }
 
@@ -109,7 +109,7 @@ function ClaimDevicePageInner() {
     const pondIdToUse = useSamePond && device?.pondId ? device.pondId.toString() : selectedPondId;
 
     if (!pondIdToUse) {
-      setError("Pilih kolam terlebih dahulu");
+      setError("Please select a pond first");
       return;
     }
 
@@ -126,11 +126,11 @@ function ClaimDevicePageInner() {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || "Gagal meng-assign device");
+        throw new Error(data.error || "Failed to assign device");
       }
 
       setDevice(data.data);
-      setSuccess("Device berhasil diassign ke kolam yang dipilih");
+      setSuccess("Device assigned to the selected pond");
       setSelectedPondId(data.data.pondId?.toString() || selectedPondId);
       
       // Redirect to devices page after 2 seconds
@@ -138,7 +138,7 @@ function ClaimDevicePageInner() {
         router.push("/devices");
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
+      setError(err instanceof Error ? err.message : "Failed to save changes");
     } finally {
       setSaving(false);
     }
@@ -153,9 +153,9 @@ function ClaimDevicePageInner() {
       <Card className="w-full max-w-xl shadow-lg border border-gray-200">
         <CardHeader className="flex items-start justify-between">
           <div>
-            <CardTitle className="text-xl">Klaim Device</CardTitle>
+            <CardTitle className="text-xl">Claim Device</CardTitle>
             <p className="text-sm text-gray-600 mt-1">
-              Pilih kolam untuk menghubungkan device: gunakan kolam yang sama atau pilih kolam lain milik Anda.
+              Choose a pond to connect the device: use the same pond or pick another pond you own.
             </p>
           </div>
           <QrCode className="h-6 w-6 text-gray-400" />
@@ -168,7 +168,7 @@ function ClaimDevicePageInner() {
                 <div className="flex-1">
                   <p className="font-semibold mb-1">Error: {error}</p>
                   <p className="text-xs text-red-500 mt-2">
-                    Solusi: Kembali ke halaman Devices dan pilih "Tambah Device" untuk scan/register device terlebih dahulu.
+                    Solution: Go back to Devices and choose "Add Device" to scan/register the device first.
                   </p>
                 </div>
               </div>
@@ -177,7 +177,7 @@ function ClaimDevicePageInner() {
                   className="w-full"
                   onClick={() => router.push("/devices")}
                 >
-                  Kembali ke Devices
+                  Back to Devices
                 </Button>
               </div>
             </div>
@@ -197,7 +197,7 @@ function ClaimDevicePageInner() {
               </div>
 
               <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-700">Assign ke Kolam</p>
+                <p className="text-sm font-medium text-gray-700">Assign to Pond</p>
                 
                 {/* Option: Use same pond as device owner */}
                 <label className="flex items-center gap-3 p-3 border border-gray-200 rounded cursor-pointer hover:bg-gray-50">
@@ -209,7 +209,7 @@ function ClaimDevicePageInner() {
                     className="w-4 h-4"
                   />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">Kolam yang sama</p>
+                    <p className="text-sm font-medium text-gray-900">Same pond</p>
                     <p className="text-xs text-gray-500">{device?.pondName}</p>
                   </div>
                 </label>
@@ -224,11 +224,11 @@ function ClaimDevicePageInner() {
                     className="w-4 h-4 mt-1"
                   />
                   <div className="flex-1 space-y-2">
-                    <p className="text-sm font-medium text-gray-900">Kolam lain</p>
+                    <p className="text-sm font-medium text-gray-900">Different pond</p>
                     {!useSamePond && ponds.length > 0 && (
                       <Select value={selectedPondId} onValueChange={setSelectedPondId}>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Pilih kolam" />
+                          <SelectValue placeholder="Select a pond" />
                         </SelectTrigger>
                         <SelectContent>
                           {ponds.map((pond) => (
@@ -240,7 +240,7 @@ function ClaimDevicePageInner() {
                       </Select>
                     )}
                     {!useSamePond && ponds.length === 0 && (
-                      <p className="text-xs text-gray-500">Belum ada kolam. Tambahkan kolam terlebih dahulu.</p>
+                      <p className="text-xs text-gray-500">No ponds yet. Add a pond first.</p>
                     )}
                   </div>
                 </label>
@@ -259,7 +259,7 @@ function ClaimDevicePageInner() {
                   className="sm:w-auto"
                   onClick={() => router.push("/devices")}
                 >
-                  Kembali ke Devices
+                  Back to Devices
                 </Button>
               <Button
                 className="sm:w-auto"
@@ -269,12 +269,12 @@ function ClaimDevicePageInner() {
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Menyimpan...
+                    Saving...
                   </>
                 ) : isExistingDevice ? (
-                  "Akses Device"
+                  "Access Device"
                 ) : (
-                  "Assign ke Kolam"
+                  "Assign to Pond"
                 )}
               </Button>
               </div>

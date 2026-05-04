@@ -208,7 +208,7 @@ export default function DashboardLayout({
     if (visibleNotifications.length === 0) {
       return (
         <div className="p-4 text-sm text-gray-500 text-center py-6">
-          Tidak ada notifikasi aktif
+          No active notifications
         </div>
       );
     }
@@ -249,7 +249,7 @@ export default function DashboardLayout({
                   </p>
                 ) : null}
                 <p className="text-xs text-gray-400 mt-1">
-                  {new Date(item.timestamp).toLocaleString("id-ID")}
+                  {new Date(item.timestamp).toLocaleString("en-US")}
                 </p>
               </div>
             </div>
@@ -324,11 +324,11 @@ export default function DashboardLayout({
     <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
         <p className="text-sm font-semibold text-gray-900">
-          {resolvedCount > 0 ? `Notifikasi ${resolvedCount}` : "Notifikasi"}
+          {resolvedCount > 0 ? `Notifications ${resolvedCount}` : "Notifications"}
         </p>
         {resolvedCount > 0 && (
           <span className="text-xs bg-red-100 text-red-600 font-medium px-2 py-0.5 rounded-full">
-            {resolvedCount} aktif
+            {resolvedCount} active
           </span>
         )}
       </div>
@@ -340,7 +340,7 @@ export default function DashboardLayout({
           }}
           className="text-xs font-medium text-cyan-700 hover:text-cyan-800"
         >
-          Clear semua
+          Clear all
         </button>
       )}
     </div>
@@ -466,7 +466,7 @@ export default function DashboardLayout({
                     ? "bg-blue-100"
                     : "hover:bg-gray-50",
                 )}
-                title={isCollapsed ? "Pengaturan Akun" : undefined}
+                title={isCollapsed ? "Account Settings" : undefined}
               >
                 <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 relative">
                   {session?.user?.image ? (
@@ -505,7 +505,7 @@ export default function DashboardLayout({
                           : "text-gray-500",
                       )}
                     >
-                      {session?.user?.username || "Pengguna"}
+                      {session?.user?.username || "User"}
                     </p>
                   </div>
                 )}

@@ -22,7 +22,7 @@ export async function getProvinces(): Promise<Province[]> {
     return response.data;
   } catch (error) {
     console.error('Error fetching provinces:', error);
-    throw new Error('Gagal mengambil data provinsi');
+    throw new Error('Failed to fetch provinces');
   }
 }
 
@@ -35,7 +35,7 @@ export async function getCitiesByProvince(provinceId: string): Promise<City[]> {
     return response.data;
   } catch (error) {
     console.error('Error fetching cities:', error);
-    throw new Error('Gagal mengambil data kota/kabupaten');
+    throw new Error('Failed to fetch cities/regencies');
   }
 }
 

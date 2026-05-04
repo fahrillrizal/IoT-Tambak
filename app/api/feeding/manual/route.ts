@@ -39,7 +39,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!pondId || !requestedAmount) {
       return NextResponse.json(
-        { error: "pondId dan requestedAmount wajib diisi" },
+        { error: "pondId and requestedAmount are required" },
         { status: 400 },
       );
     }
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!pond) {
       return NextResponse.json(
-        { error: "Kolam tidak ditemukan" },
+        { error: "Pond not found" },
         { status: 404 },
       );
     }
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const feederDevice = pond.devices[0];
     if (!feederDevice?.thingsboardDeviceId) {
       return NextResponse.json(
-        { error: "Tidak ada perangkat feeder aktif di kolam ini" },
+        { error: "No active feeder device in this pond" },
         { status: 400 },
       );
     }
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!latestSensor) {
       return NextResponse.json(
-        { error: "Belum ada data sensor." },
+        { error: "No sensor data yet." },
         { status: 400 },
       );
     }
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!aiRes.ok) {
       return NextResponse.json(
-        { error: "AI API tidak dapat dihubungi", details: await aiRes.text() },
+        { error: "AI API is unreachable", details: await aiRes.text() },
         { status: 502 },
       );
     }
@@ -161,13 +161,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           turbidity: latestSensor.avgTurbidity,
           executedAt: new Date(),
           triggeredBy: userId,
-          notes: `Manual feeding — RPC gagal: ${String(rpcErr)}`,
+          notes: `Manual feeding — RPC failed: ${String(rpcErr)}`,
         },
       });
 
       return NextResponse.json(
         {
-          error: "Perintah gagal dikirim ke perangkat",
+          error: "Failed to send command to device",
           approved: true,
           rpc_sent: false,
         },

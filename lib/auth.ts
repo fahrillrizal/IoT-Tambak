@@ -55,7 +55,7 @@ export const authConfig: NextAuthConfig = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email dan password harus diisi");
+          throw new Error("Email and password are required");
         }
 
         const email = credentials.email as string;
@@ -66,19 +66,19 @@ export const authConfig: NextAuthConfig = {
         });
 
         if (!user) {
-          throw new Error("Email atau password salah");
+          throw new Error("Invalid email or password");
         }
 
         if (!user.password) {
           throw new Error(
-            "Akun ini terdaftar melalui Google. Silakan login dengan Google."
+            "This account was created with Google. Please sign in with Google."
           );
         }
 
         const isValidPassword = await verifyPassword(password, user.password);
 
         if (!isValidPassword) {
-          throw new Error("Email atau password salah");
+          throw new Error("Invalid email or password");
         }
 
         return {

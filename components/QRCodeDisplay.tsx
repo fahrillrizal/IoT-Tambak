@@ -31,7 +31,7 @@ export function QRCodeDisplay({
   useEffect(() => {
     const generateQR = async () => {
       if (!deviceId) {
-        setError("Device ID tidak tersedia");
+        setError("Device ID is not available");
         setLoading(false);
         return;
       }
@@ -157,10 +157,10 @@ export function QRCodeDisplay({
               </div>
 
               <div className="bg-gray-50 p-3 rounded text-sm space-y-2">
-                <p className="font-semibold text-gray-900">Link langsung:</p>
+                <p className="font-semibold text-gray-900">Direct link:</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 bg-white p-2 rounded border border-gray-200 text-xs font-mono truncate">
-                    {claimUrl || "(link tidak tersedia)"}
+                    {claimUrl || "(link not available)"}
                   </code>
                   <Button variant="ghost" size="sm" onClick={handleCopyLink} className="shrink-0">
                     {copiedLink ? (
@@ -172,7 +172,7 @@ export function QRCodeDisplay({
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={handleOpenLink} disabled={!claimUrl}>
-                    <ExternalLink className="h-4 w-4 mr-1" /> Buka
+                    <ExternalLink className="h-4 w-4 mr-1" /> Open
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleShare} disabled={!claimUrl}>
                     <Share2 className="h-4 w-4 mr-1" /> Share/Copy

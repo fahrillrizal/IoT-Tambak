@@ -95,8 +95,8 @@ function getTodayStartWIBTs(): number {
 }
 
 function formatIndonesiaDate(dateString: string | null): string {
-  if (!dateString) return "Belum ada data";
-  return new Date(dateString).toLocaleDateString("id-ID", {
+  if (!dateString) return "No data yet";
+  return new Date(dateString).toLocaleDateString("en-US", {
     day: "numeric",
     month: "numeric",
     year: "numeric",
@@ -104,7 +104,7 @@ function formatIndonesiaDate(dateString: string | null): string {
 }
 
 function formatNumber(value: number): string {
-  return new Intl.NumberFormat("id-ID").format(value);
+  return new Intl.NumberFormat("en-US").format(value);
 }
 
 function formatMetric(
@@ -125,13 +125,13 @@ function buildReadingMessage(point: TelemetryPoint): string {
   const salinity = formatMetric(point.salinity, " ppt", 1);
   const turbidity = formatMetric(point.turbidity, " NTU", 1);
 
-  if (temperature) parts.push(`Suhu ${temperature}`);
+  if (temperature) parts.push(`Temp ${temperature}`);
   if (ph) parts.push(`pH ${ph}`);
   if (dissolvedOxygen) parts.push(`DO ${dissolvedOxygen}`);
-  if (salinity) parts.push(`Salinitas ${salinity}`);
+  if (salinity) parts.push(`Salinity ${salinity}`);
   if (turbidity) parts.push(`Turbidity ${turbidity}`);
 
-  if (parts.length === 0) return "Data sensor diterima";
+  if (parts.length === 0) return "Sensor data received";
   return parts.join(" • ");
 }
 
@@ -145,21 +145,21 @@ function getTelemetrySeverity(
   const tb = point.turbidity;
 
   if (
-    (t !== undefined && (t < 26 || t > 32)) ||
-    (p !== undefined && (p < 7.5 || p > 8.5)) ||
-    (d !== undefined && (d < 4 || d > 8)) ||
-    (s !== undefined && (s < 10 || s > 35)) ||
-    (tb !== undefined && tb > 80)
+    (t !== undefined && (t < 24 || t > 32)) ||
+    (p !== undefined && (p < 6.0 || p > 8.4)) ||
+    (d !== undefined && d < 4.9) ||
+    (s !== undefined && (s < 8 || s > 35)) ||
+    (tb !== undefined && tb > 40)
   ) {
     return "high";
   }
 
   if (
-    (t !== undefined && (t < 27 || t > 31)) ||
-    (p !== undefined && (p < 7.8 || p > 8.2)) ||
-    (d !== undefined && (d < 5 || d > 7.5)) ||
-    (s !== undefined && (s < 15 || s > 30)) ||
-    (tb !== undefined && (tb < 10 || tb > 50))
+    (t !== undefined && (t === 25 || t === 31)) ||
+    (p !== undefined && (p < 7.0 || p > 8.0)) ||
+    (d !== undefined && d < 5 && d >= 4.9) ||
+    (s !== undefined && (s < 10 || (s > 30 && s <= 35))) ||
+    (tb !== undefined && tb > 25 && tb <= 40)
   ) {
     return "medium";
   }
@@ -167,24 +167,60 @@ function getTelemetrySeverity(
   return "normal";
 }
 
+function buildIssuesFromParams(params: Record<string, number | null | undefined>) {
+  const critical: string[] = [];
+  const warning: string[] = [];
+
+  const t = params.temperature;
+  const p = params.ph;
+  const d = params.dissolvedOxygen;
+  const s = params.salinity;
+  const tb = params.turbidity;
+
+  if (typeof t === "number") {
+    if (t < 24) critical.push(`Temperature LOW: ${t.toFixed(1)}°C (min: 26°C)`);
+    else if (t > 32) critical.push(`Temperature HIGH: ${t.toFixed(1)}°C (max: 32°C)`);
+    else if (t === 25) warning.push(`Temperature slightly LOW: ${t.toFixed(1)}°C (min: 26°C)`);
+    else if (t === 31) warning.push(`Temperature slightly HIGH: ${t.toFixed(1)}°C (max: 30°C)`);
+  }
+
+  if (typeof p === "number") {
+    if (p < 6.0) critical.push(`pH LOW: ${p.toFixed(2)} (min: 7.5)`);
+    else if (p > 8.4) critical.push(`pH HIGH: ${p.toFixed(2)} (max: 8.5)`);
+    else if (p < 7.0) warning.push(`pH slightly LOW: ${p.toFixed(2)} (min: 7.0)`);
+    else if (p > 8.0) warning.push(`pH slightly HIGH: ${p.toFixed(2)} (max: 8.0)`);
+  }
+
+  if (typeof d === "number") {
+    if (d < 4.9) critical.push(`Dissolved Oxygen LOW: ${d.toFixed(1)} mg/L (min: 5 mg/L)`);
+    else if (d < 5 && d >= 4.9)
+      warning.push(`Dissolved Oxygen slightly LOW: ${d.toFixed(1)} mg/L (min: 5 mg/L)`);
+  }
+
+  if (typeof s === "number") {
+    if (s < 8) critical.push(`Salinity LOW: ${s.toFixed(1)} ppt (min: 10 ppt)`);
+    else if (s > 35) critical.push(`Salinity HIGH: ${s.toFixed(1)} ppt (max: 30 ppt)`);
+    else if (s < 10) warning.push(`Salinity slightly LOW: ${s.toFixed(1)} ppt (min: 10 ppt)`);
+    else if (s > 30 && s <= 35)
+      warning.push(`Salinity slightly HIGH: ${s.toFixed(1)} ppt (max: 30 ppt)`);
+  }
+
+  if (typeof tb === "number") {
+    if (tb > 40) critical.push(`Turbidity HIGH: ${tb.toFixed(1)} NTU (max: 15 NTU)`);
+    else if (tb > 25 && tb <= 40)
+      warning.push(`Turbidity slightly HIGH: ${tb.toFixed(1)} NTU (min: 10 NTU)`);
+  }
+
+  return { critical, warning };
+}
+
 function buildAlertMessage(item: AlertHistoryItem): string {
-  
   const params = item.parameters || {};
-  const parts: string[] = [];
+  const issues = buildIssuesFromParams(params);
+  const list = item.severity === "CRITICAL" ? issues.critical : issues.warning;
 
-  if (typeof params.temperature === "number")
-    parts.push(`Suhu ${params.temperature.toFixed(1)}°C`);
-  if (typeof params.ph === "number")
-    parts.push(`pH ${params.ph.toFixed(2)}`);
-  if (typeof params.dissolvedOxygen === "number")
-    parts.push(`DO ${params.dissolvedOxygen.toFixed(1)} mg/L`);
-  if (typeof params.salinity === "number")
-    parts.push(`Salinitas ${params.salinity.toFixed(1)} ppt`);
-  if (typeof params.turbidity === "number")
-    parts.push(`Turbidity ${params.turbidity.toFixed(1)} NTU`);
-
-  if (parts.length > 0) {
-    return `${item.severity}: ${parts.join(" • ")}`;
+  if (list.length > 0) {
+    return `${item.severity}: ${list.join(" | ")}`;
   }
 
   return item.message.replace(/^(CRITICAL|WARNING):\s*(CRITICAL|WARNING):\s*/i, "$1: ");
@@ -286,10 +322,10 @@ export default function HistoryPageClient({
             totalData: result.data.totalData ?? 0,
           });
         } else {
-          setStatsError(result.error || "Gagal memuat statistik");
+          setStatsError(result.error || "Failed to load statistics");
         }
       } catch (error) {
-        setStatsError("Gagal memuat statistik");
+        setStatsError("Failed to load statistics");
         console.error("Failed to fetch history stats:", error);
       } finally {
         setIsStatsLoading(false);
@@ -341,8 +377,8 @@ export default function HistoryPageClient({
               const severity = getTelemetrySeverity(point);
               return {
                 id: `reading-${point.timestamp}`,
-                date: createdAt.toLocaleDateString("id-ID"),
-                time: createdAt.toLocaleTimeString("id-ID", {
+                date: createdAt.toLocaleDateString("en-US"),
+                time: createdAt.toLocaleTimeString("en-US", {
                   hour: "2-digit",
                   minute: "2-digit",
                   second: "2-digit",
@@ -389,8 +425,8 @@ export default function HistoryPageClient({
 
           return {
             id: `alarm-${alert.id}`,
-            date: createdAt.toLocaleDateString("id-ID"),
-            time: createdAt.toLocaleTimeString("id-ID", {
+            date: createdAt.toLocaleDateString("en-US"),
+            time: createdAt.toLocaleTimeString("en-US", {
               hour: "2-digit",
               minute: "2-digit",
             }),
@@ -495,15 +531,15 @@ export default function HistoryPageClient({
     <DashboardLayout activeMenu="history" defaultCollapsed={defaultCollapsed}>
       <div className="mb-20 lg:mb-0">
         <DashboardHeader
-          title="History Alat"
-          subtitle="Riwayat lengkap aktivitas dan data monitoring alat IoT"
+          title="Device History"
+          subtitle="Full history of activity and IoT device monitoring data"
         />
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="flex-1">
             <label className="text-sm font-medium text-gray-700 mb-2 block">
-              Perangkat
+              Device
             </label>
             <PondSelector
               devices={devices}
@@ -513,17 +549,17 @@ export default function HistoryPageClient({
           </div>
           <div className="w-full sm:w-48">
             <label className="text-sm font-medium text-gray-700 mb-2 block">
-              Periode
+              Period
             </label>
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="today">Hari Ini (Realtime)</SelectItem>
-                <SelectItem value="7days">7 Hari Terakhir</SelectItem>
-                <SelectItem value="30days">30 Hari Terakhir</SelectItem>
-                <SelectItem value="90days">90 Hari Terakhir</SelectItem>
+                <SelectItem value="today">Today (Realtime)</SelectItem>
+                <SelectItem value="7days">Last 7 Days</SelectItem>
+                <SelectItem value="30days">Last 30 Days</SelectItem>
+                <SelectItem value="90days">Last 90 Days</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -541,9 +577,9 @@ export default function HistoryPageClient({
                   <p className="text-2xl font-bold text-gray-900">
                     {isStatsLoading ? "..." : formatNumber(stats.activeDays)}
                   </p>
-                  <p className="text-sm text-gray-500">Hari Aktif</p>
+                  <p className="text-sm text-gray-500">Active Days</p>
                   <p className="text-xs text-gray-400">
-                    Sejak {formatIndonesiaDate(stats.firstDataAt)}
+                    Since {formatIndonesiaDate(stats.firstDataAt)}
                   </p>
                 </div>
               </div>
@@ -604,7 +640,7 @@ export default function HistoryPageClient({
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-4">
-              <CardTitle className="text-lg">Riwayat Aktivitas</CardTitle>
+              <CardTitle className="text-lg">Activity History</CardTitle>
               <div className="flex gap-2 flex-wrap">
                 {["all", "alert", "reading", "maintenance"].map((type) => (
                   <Button
@@ -617,7 +653,7 @@ export default function HistoryPageClient({
                     }
                   >
                     {type === "all"
-                      ? "Semua"
+                      ? "All"
                       : type.charAt(0).toUpperCase() + type.slice(1)}
                   </Button>
                 ))}
@@ -628,7 +664,7 @@ export default function HistoryPageClient({
             <div className="space-y-3">
               {visibleLogs.length === 0 ? (
                 <div className="p-6 rounded-lg border border-dashed border-gray-300 text-center text-sm text-gray-500">
-                  Tidak ada data untuk periode ini.
+                  No data for this period.
                 </div>
               ) : null}
 
@@ -683,9 +719,9 @@ export default function HistoryPageClient({
                       }`}
                     >
                       {log.severity === "high"
-                        ? "Tinggi"
+                        ? "High"
                         : log.severity === "medium"
-                          ? "Sedang"
+                          ? "Medium"
                           : log.severity === "normal"
                             ? "Normal"
                             : "Info"}
@@ -702,7 +738,7 @@ export default function HistoryPageClient({
                   onClick={() => setVisibleCount((prev) => prev + 20)}
                 >
                   <ChevronDown className="h-4 w-4 mr-2" />
-                  Muat Lebih Banyak
+                  Load More
                 </Button>
               </div>
             ) : null}

@@ -184,7 +184,7 @@ export default function ForgotPasswordForm() {
         }
       }
     } catch (err) {
-      setError("Terjadi kesalahan. Silakan coba lagi.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -198,7 +198,7 @@ export default function ForgotPasswordForm() {
 
     const otp = getOtp();
     if (otp.length !== 5) {
-      setError("Kode OTP harus 5 digit");
+      setError("OTP code must be 5 digits");
       setIsLoading(false);
       return;
     }
@@ -219,7 +219,7 @@ export default function ForgotPasswordForm() {
         setStep("password");
       }
     } catch (err) {
-      setError("Terjadi kesalahan. Silakan coba lagi.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -232,13 +232,13 @@ export default function ForgotPasswordForm() {
     setSuccess("");
 
     if (password.length < 8) {
-      setError("Password minimal 8 karakter");
+      setError("Password must be at least 8 characters");
       setIsLoading(false);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Password dan konfirmasi password tidak cocok");
+      setError("Password and confirmation do not match");
       setIsLoading(false);
       return;
     }
@@ -258,14 +258,14 @@ export default function ForgotPasswordForm() {
       } else {
         clearStorage();
         setSuccess(
-          "Password berhasil direset! Mengalihkan ke halaman login..."
+          "Password reset successful! Redirecting to login..."
         );
         setTimeout(() => {
           router.push("/login");
         }, 2000);
       }
     } catch (err) {
-      setError("Terjadi kesalahan. Silakan coba lagi.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -275,12 +275,12 @@ export default function ForgotPasswordForm() {
     if (cooldown > 0) {
       const minutes = Math.floor(cooldown / 60);
       const seconds = cooldown % 60;
-      return `Kirim Ulang (${minutes > 0 ? `${minutes}m ` : ""}${seconds}s)`;
+      return `Resend (${minutes > 0 ? `${minutes}m ` : ""}${seconds}s)`;
     }
     if (resendCount >= 2) {
-      return "Batas pengiriman tercapai";
+      return "Resend limit reached";
     }
-    return "Kirim Ulang OTP";
+    return "Resend OTP";
   };
 
   if (isCheckingStorage) {
@@ -297,14 +297,14 @@ export default function ForgotPasswordForm() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">
-            {step === "email" && "Lupa Password"}
-            {step === "otp" && "Verifikasi OTP"}
+            {step === "email" && "Forgot Password"}
+            {step === "otp" && "Verify OTP"}
             {step === "password" && "Reset Password"}
           </CardTitle>
           <CardDescription>
-            {step === "email" && "Masukkan email Anda untuk menerima kode OTP"}
-            {step === "otp" && "Masukkan kode OTP yang dikirim ke email Anda"}
-            {step === "password" && "Buat password baru untuk akun Anda"}
+            {step === "email" && "Enter your email to receive an OTP code"}
+            {step === "otp" && "Enter the OTP code sent to your email"}
+            {step === "password" && "Create a new password for your account"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -346,7 +346,7 @@ export default function ForgotPasswordForm() {
                 className="w-full"
                 disabled={isLoading || !email}
               >
-                {isLoading ? "Mengirim..." : "Kirim OTP"}
+                {isLoading ? "Sending..." : "Send OTP"}
               </Button>
             </form>
           )}
@@ -355,7 +355,7 @@ export default function ForgotPasswordForm() {
           {step === "otp" && (
             <form onSubmit={handleVerifyOTP} className="space-y-4">
               <div className="space-y-3">
-                <Label className="text-center block">Kode OTP</Label>
+                <Label className="text-center block">OTP Code</Label>
                 <div
                   className="flex justify-center gap-2"
                   onPaste={handleOtpPaste}
@@ -379,7 +379,7 @@ export default function ForgotPasswordForm() {
                   ))}
                 </div>
                 <p className="text-sm text-gray-500 text-center">
-                  OTP dikirim ke: <span className="font-medium">{email}</span>
+                  OTP sent to: <span className="font-medium">{email}</span>
                 </p>
               </div>
               <Button
@@ -387,7 +387,7 @@ export default function ForgotPasswordForm() {
                 className="w-full"
                 disabled={isLoading || getOtp().length !== 5}
               >
-                {isLoading ? "Memverifikasi..." : "Verifikasi OTP"}
+                {isLoading ? "Verifying..." : "Verify OTP"}
               </Button>
               <Button
                 type="button"
@@ -405,7 +405,7 @@ export default function ForgotPasswordForm() {
           {step === "password" && (
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">Password Baru</Label>
+                <Label htmlFor="password">New Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -434,7 +434,7 @@ export default function ForgotPasswordForm() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -466,7 +466,7 @@ export default function ForgotPasswordForm() {
                 className="w-full"
                 disabled={isLoading || !password || !confirmPassword}
               >
-                {isLoading ? "Menyimpan..." : "Reset Password"}
+                {isLoading ? "Saving..." : "Reset Password"}
               </Button>
             </form>
           )}
@@ -477,7 +477,7 @@ export default function ForgotPasswordForm() {
             className="text-sm text-blue-600 hover:underline font-medium flex items-center gap-1"
           >
             <ArrowLeft className="h-4 w-4" />
-            Kembali ke halaman login
+            Back to login
           </Link>
         </CardFooter>
       </Card>

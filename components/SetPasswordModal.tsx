@@ -44,7 +44,7 @@ export default function SetPasswordModal({ isOpen, onClose, onSuccess }: SetPass
         onClose();
       }
     } catch (e: any) {
-      setError('Terjadi kesalahan');
+      setError('Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -69,9 +69,9 @@ export default function SetPasswordModal({ isOpen, onClose, onSuccess }: SetPass
               <Lock className="w-8 h-8" />
             </div>
           </div>
-          <h2 className="text-xl font-bold text-center">Buat Password</h2>
+          <h2 className="text-xl font-bold text-center">Create Password</h2>
           <p className="text-sm text-center text-white/80 mt-2">
-            Buat password untuk login dengan email & password
+            Create a password to sign in with email and password
           </p>
         </div>
 
@@ -86,7 +86,7 @@ export default function SetPasswordModal({ isOpen, onClose, onSuccess }: SetPass
                 value={form.password}
                 onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Masukkan password"
+                placeholder="Enter password"
                 required
               />
               <button
@@ -97,11 +97,11 @@ export default function SetPasswordModal({ isOpen, onClose, onSuccess }: SetPass
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Min 6 karakter, huruf besar, kecil, dan angka</p>
+            <p className="text-xs text-gray-500 mt-1">Min 6 characters, uppercase, lowercase, and a number</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Konfirmasi Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
             <div className="relative">
               <input
                 type={showConfirm ? 'text' : 'password'}
@@ -109,7 +109,7 @@ export default function SetPasswordModal({ isOpen, onClose, onSuccess }: SetPass
                 value={form.confirmPassword}
                 onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Konfirmasi password"
+                placeholder="Confirm password"
                 required
               />
               <button
@@ -134,14 +134,14 @@ export default function SetPasswordModal({ isOpen, onClose, onSuccess }: SetPass
               onClick={handleSkip}
               className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
             >
-              Nanti Saja
+              Not Now
             </button>
             <button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
-              {loading ? 'Menyimpan...' : 'Buat Password'}
+              {loading ? 'Saving...' : 'Create Password'}
             </button>
           </div>
         </form>

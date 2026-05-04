@@ -159,7 +159,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
         navigateToClaim(deviceId);
       } else {
         setError(
-          "Format QR code tidak valid. Pastikan QR code berasal dari perangkat IoT Tambak."
+          "Invalid QR code format. Make sure the QR code is from an IoT Tambak device."
         );
       }
     },
@@ -175,16 +175,16 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
       errorMessage.includes("Permission")
     ) {
       setError(
-        "Akses kamera ditolak. Mohon izinkan akses kamera di pengaturan browser."
+        "Camera access denied. Please allow camera access in your browser settings."
       );
     } else if (errorMessage.includes("NotFoundError")) {
-      setError("Kamera tidak ditemukan. Pastikan perangkat memiliki kamera.");
+      setError("Camera not found. Make sure your device has a camera.");
     } else if (errorMessage.includes("NotSupported")) {
-      setError("Browser Anda tidak mendukung akses kamera.");
+      setError("Your browser does not support camera access.");
     } else if (errorMessage.includes("NotReadable")) {
-      setError("Kamera sedang digunakan oleh aplikasi lain.");
+      setError("Camera is currently in use by another application.");
     } else {
-      setError(`Error kamera: ${errorMessage}`);
+      setError(`Camera error: ${errorMessage}`);
     }
   }, []);
 
@@ -202,7 +202,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
 
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (file.size > MAX_FILE_SIZE) {
-        setError("Ukuran file terlalu besar. Maksimal 10MB.");
+        setError("File is too large. Max 10MB.");
         setStep("scan-select");
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
@@ -213,7 +213,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
 
       const loadTimeout = setTimeout(() => {
         URL.revokeObjectURL(imageUrl);
-        setError("Timeout memuat gambar. Coba gambar lain.");
+        setError("Image load timed out. Try another image.");
         setStep("scan-select");
       }, 10000);
 
@@ -257,19 +257,19 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
               navigateToClaim(deviceId);
             } else {
               setError(
-                "Format QR code tidak valid. Pastikan QR code berasal dari perangkat IoT Tambak."
+                "Invalid QR code format. Make sure the QR code is from an IoT Tambak device."
               );
               setStep("scan-select");
             }
           } else {
             setError(
-              "Tidak dapat mendeteksi QR code dalam gambar. Pastikan gambar jelas."
+              "Could not detect a QR code in the image. Make sure the image is clear."
             );
             setStep("scan-select");
           }
         } catch (err) {
           console.error("Canvas processing error:", err);
-          setError("Gagal memproses gambar. Coba gambar lain.");
+          setError("Failed to process image. Try another image.");
           setStep("scan-select");
           URL.revokeObjectURL(imageUrl);
         }
@@ -279,7 +279,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
         clearTimeout(loadTimeout);
         URL.revokeObjectURL(imageUrl);
         setError(
-          "Gagal memuat gambar. Pastikan file adalah gambar yang valid."
+          "Failed to load image. Ensure the file is a valid image."
         );
         setStep("scan-select");
       };
@@ -408,9 +408,9 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
       case "scan-select":
         return "Scan QR Code";
       case "scan-camera":
-        return "Arahkan ke QR Code";
+        return "Point at the QR Code";
       case "scan-processing":
-        return "Memproses...";
+        return "Processing...";
       case "pond-selection":
         return "Select Pond";
       case "pond-creation":
@@ -531,8 +531,8 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
           {step === "scan-select" && (
             <>
               <p className="text-sm text-muted-foreground">
-                Scan QR code pada perangkat IoT Tambak untuk menghubungkan ke
-                akun Anda.
+                Scan the QR code on the IoT Tambak device to connect to your
+                account.
               </p>
 
               {error && (
@@ -554,9 +554,9 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
                   <div className="flex items-center gap-3">
                     <Camera className="h-5 w-5" />
                     <div className="text-left">
-                      <p className="font-medium">Scan dengan Kamera</p>
+                      <p className="font-medium">Scan with Camera</p>
                       <p className="text-xs opacity-80">
-                        Real-time scanning tanpa memotret
+                        Real-time scanning without taking a photo
                       </p>
                     </div>
                   </div>
@@ -570,9 +570,9 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
                   <div className="flex items-center gap-3">
                     <ImageIcon className="h-5 w-5" />
                     <div className="text-left">
-                      <p className="font-medium">Pilih dari Galeri</p>
+                      <p className="font-medium">Choose from Gallery</p>
                       <p className="text-xs text-muted-foreground">
-                        Upload gambar QR code
+                        Upload a QR code image
                       </p>
                     </div>
                   </div>
@@ -580,8 +580,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
               </div>
 
               <p className="text-xs text-center text-muted-foreground pt-2">
-                QR code berisi Device ID yang akan digunakan untuk klaim
-                perangkat
+                The QR code contains the Device ID used to claim the device
               </p>
             </>
           )}
@@ -638,7 +637,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
                 {/* Bottom indicator */}
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  Mencari QR Code...
+                  Searching for QR code...
                 </div>
 
                 {/* Switch camera button */}
@@ -667,7 +666,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
                   variant="outline"
                   className="flex-1"
                 >
-                  Kembali
+                  Back
                 </Button>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
@@ -675,7 +674,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
                   className="flex-1"
                 >
                   <ImageIcon className="h-4 w-4 mr-2" />
-                  Dari Galeri
+                  From Gallery
                 </Button>
               </div>
             </>
@@ -685,7 +684,7 @@ export function DeviceScanModal({ isOpen, onClose }: DeviceScanModalProps) {
           {step === "scan-processing" && (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-muted-foreground">Memproses QR Code...</p>
+              <p className="text-muted-foreground">Processing QR Code...</p>
             </div>
           )}
 

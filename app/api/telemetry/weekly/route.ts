@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     }
 
     const labels: string[] = [];
-    const dayNames = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+    const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     if (!pondId) {
       for (let i = 0; i < 7; i++) labels.push(dayNames[i]);
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
             { label: "Salinitas (ppt)", data: Array(7).fill(null) },
             { label: "Turbidity (NTU)", data: Array(7).fill(null) },
           ],
-          message: "Data tidak ditemukan",
+          message: "No data found",
         },
       });
     }
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
         labels,
         datasets: [
           {
-            label: "Suhu (°C)",
+            label: "Temperature (°C)",
             data: chartData.temperature,
             borderColor: "rgb(59, 130, 246)",
             backgroundColor: "transparent",
@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
             spanGaps: true,
           },
           {
-            label: "Oksigen (mg/L)",
+            label: "Dissolved Oxygen (mg/L)",
             data: chartData.dissolvedOxygen,
             borderColor: "rgb(16, 185, 129)",
             backgroundColor: "transparent",
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
             spanGaps: true,
           },
           {
-            label: "Salinitas (ppt)",
+            label: "Salinity (ppt)",
             data: chartData.salinity,
             borderColor: "rgb(6, 182, 212)",
             backgroundColor: "transparent",

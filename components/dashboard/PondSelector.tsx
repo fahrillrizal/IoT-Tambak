@@ -34,7 +34,7 @@ export default function PondSelector({
       <div className="flex items-center gap-3 w-full sm:w-auto">
         <div className="w-full sm:w-[300px] bg-white border border-gray-200 rounded-md px-3 py-2.5 flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-          <span className="text-gray-400">Memuat perangkat...</span>
+          <span className="text-gray-400">Loading devices...</span>
         </div>
       </div>
     );
@@ -46,7 +46,7 @@ export default function PondSelector({
       <div className="flex items-center gap-3 w-full sm:w-auto">
         <div className="w-full sm:w-[300px] bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2.5">
           <span className="text-yellow-700 text-sm">
-            Belum ada perangkat terdaftar
+            No devices registered yet
           </span>
         </div>
       </div>
@@ -62,7 +62,7 @@ export default function PondSelector({
         >
           <div className="flex items-center justify-between w-full">
             <span className="text-gray-700 font-medium truncate">
-              {currentDevice?.name || 'Pilih Perangkat'}
+              {currentDevice?.name || 'Select Device'}
             </span>
             <div className="flex items-center gap-2 ml-3 shrink-0">
               {currentDevice?.isOnline ? (

@@ -40,13 +40,13 @@ export default function PasswordPage({ defaultCollapsed = false }: PasswordPageP
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Gagal reset password");
+        setError(data.error || "Failed to reset password");
       } else {
         setMessage(data.message);
         setForm({ oldPassword: "", newPassword: "", confirmNewPassword: "" });
       }
     } catch (e: any) {
-      setError("Terjadi kesalahan");
+      setError("Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -69,7 +69,7 @@ export default function PasswordPage({ defaultCollapsed = false }: PasswordPageP
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
         >
           <ArrowLeft className="h-5 w-5" />
-          <span className="text-sm font-medium">Kembali ke Pengaturan</span>
+          <span className="text-sm font-medium">Back to Settings</span>
         </button>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
@@ -77,13 +77,13 @@ export default function PasswordPage({ defaultCollapsed = false }: PasswordPageP
             Reset Password
           </h1>
           <p className="text-sm text-gray-500 mb-6">
-            Ubah password akun Anda untuk menjaga keamanan login.
+            Change your account password to keep your sign-in secure.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password Lama
+                Current Password
               </label>
               <input
                 type="password"
@@ -97,7 +97,7 @@ export default function PasswordPage({ defaultCollapsed = false }: PasswordPageP
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password Baru
+                New Password
               </label>
               <input
                 type="password"
@@ -108,14 +108,14 @@ export default function PasswordPage({ defaultCollapsed = false }: PasswordPageP
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
-                Minimal 6 karakter, harus mengandung huruf besar, kecil, dan
-                angka
+                At least 6 characters, must include uppercase, lowercase, and a
+                number
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Konfirmasi Password Baru
+                Confirm New Password
               </label>
               <input
                 type="password"
@@ -133,7 +133,7 @@ export default function PasswordPage({ defaultCollapsed = false }: PasswordPageP
                 disabled={loading}
                 className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
-                {loading ? "Memproses..." : "Simpan Password"}
+                {loading ? "Processing..." : "Save Password"}
               </button>
             </div>
 
