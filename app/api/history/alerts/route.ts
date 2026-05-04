@@ -95,6 +95,9 @@ function buildMessageFromParams(severity: "WARNING" | "CRITICAL", params: any): 
   const list = severity === "CRITICAL" ? issues.critical : issues.warning;
 
   if (list.length === 0) return null;
+  if (severity === "CRITICAL" && issues.warning.length > 0) {
+    return `${severity}: ${list.join(" | ")} | Warning: ${issues.warning.join(" | ")}`;
+  }
   return `${severity}: ${list.join(" | ")}`;
 }
 

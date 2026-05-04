@@ -104,6 +104,11 @@ function buildSensorMessage(
   const issues = buildIssuesFromParams(params);
   const list = severity === "CRITICAL" ? issues.critical : issues.warning;
   if (list.length === 0) return `${severity}: Water quality is not normal`;
+
+  if (severity === "CRITICAL" && issues.warning.length > 0) {
+    return `${severity}: ${list.join(" | ")} | Warning: ${issues.warning.join(" | ")}`;
+  }
+
   return `${severity}: ${list.join(" | ")}`;
 }
 
@@ -429,12 +434,15 @@ export async function POST(request: NextRequest) {
       }
 
       if (chatIds.length > 0) {
+        const telegramMessage = hasValidParams
+          ? buildSensorMessage(severity, sensorParams)
+          : message;
         const telegramText = buildAlertTelegramMessage({
           severity,
           pondName: device.pond.name,
           deviceId: tbDeviceId,
           deviceName: device.name,
-          message,
+          message: telegramMessage,
           action,
           status,
           eventTime,

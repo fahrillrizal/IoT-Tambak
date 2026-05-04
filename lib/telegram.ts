@@ -69,7 +69,11 @@ export function buildAlertTelegramMessage(input: {
     lines.push(`Action: ${input.action}`);
   }
 
-  lines.push(`Time: ${input.eventTime.toLocaleString("en-US")}`);
+  lines.push(
+    `Time: ${input.eventTime.toLocaleString("en-US", {
+      timeZone: "Asia/Jakarta",
+    })}`,
+  );
 
   return lines.join("\n");
 }

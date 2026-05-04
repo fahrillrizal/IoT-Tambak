@@ -220,6 +220,9 @@ function buildAlertMessage(item: AlertHistoryItem): string {
   const list = item.severity === "CRITICAL" ? issues.critical : issues.warning;
 
   if (list.length > 0) {
+    if (item.severity === "CRITICAL" && issues.warning.length > 0) {
+      return `${item.severity}: ${list.join(" | ")} | Warning: ${issues.warning.join(" | ")}`;
+    }
     return `${item.severity}: ${list.join(" | ")}`;
   }
 
