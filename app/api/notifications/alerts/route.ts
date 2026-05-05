@@ -71,35 +71,80 @@ function evaluateSeverity(data: {
   return null;
 }
 
+type IssueBuckets = {
+  critical: string[];
+  warning: string[];
+};
+
+function buildIssuesFromParams(params: Record<string, unknown>): IssueBuckets {
+  const critical: string[] = [];
+  const warning: string[] = [];
+
+  const t = params.temperature;
+  const p = params.ph;
+  const d = params.dissolvedOxygen;
+  const s = params.salinity;
+  const tb = params.turbidity;
+
+  if (typeof t === "number") {
+    if (t < 24) critical.push(`Temperature LOW: ${t.toFixed(1)}°C (min: 26°C)`);
+    else if (t > 32) critical.push(`Temperature HIGH: ${t.toFixed(1)}°C (max: 32°C)`);
+    else if (t === 25) warning.push(`Temperature slightly LOW: ${t.toFixed(1)}°C (min: 26°C)`);
+    else if (t === 31) warning.push(`Temperature slightly HIGH: ${t.toFixed(1)}°C (max: 30°C)`);
+  }
+
+  if (typeof p === "number") {
+    if (p < 6.0) critical.push(`pH LOW: ${p.toFixed(2)} (min: 7.5)`);
+    else if (p > 8.4) critical.push(`pH HIGH: ${p.toFixed(2)} (max: 8.5)`);
+    else if (p < 7.0) warning.push(`pH slightly LOW: ${p.toFixed(2)} (min: 7.0)`);
+    else if (p > 8.0) warning.push(`pH slightly HIGH: ${p.toFixed(2)} (max: 8.0)`);
+  }
+
+  if (typeof d === "number") {
+    if (d < 4.9) critical.push(`Dissolved Oxygen LOW: ${d.toFixed(1)} mg/L (min: 5 mg/L)`);
+    else if (d < 5 && d >= 4.9)
+      warning.push(`Dissolved Oxygen slightly LOW: ${d.toFixed(1)} mg/L (min: 5 mg/L)`);
+  }
+
+  if (typeof s === "number") {
+    if (s < 8) critical.push(`Salinity LOW: ${s.toFixed(1)} ppt (min: 10 ppt)`);
+    else if (s > 35) critical.push(`Salinity HIGH: ${s.toFixed(1)} ppt (max: 30 ppt)`);
+    else if (s < 10) warning.push(`Salinity slightly LOW: ${s.toFixed(1)} ppt (min: 10 ppt)`);
+    else if (s > 30 && s <= 35)
+      warning.push(`Salinity slightly HIGH: ${s.toFixed(1)} ppt (max: 30 ppt)`);
+  }
+
+  if (typeof tb === "number") {
+    if (tb > 40) critical.push(`Turbidity HIGH: ${tb.toFixed(1)} NTU (max: 15 NTU)`);
+    else if (tb > 25 && tb <= 40)
+      warning.push(`Turbidity slightly HIGH: ${tb.toFixed(1)} NTU (min: 10 NTU)`);
+  }
+
+  return { critical, warning };
+}
+
 function buildMessageFromParams(
   severity: "WARNING" | "CRITICAL",
   params: Record<string, unknown>,
 ): string | null {
-  const parts: string[] = [];
-  if (typeof params.temperature === "number") {
-    parts.push(`Suhu ${params.temperature.toFixed(1)}°C`);
-  }
-  if (typeof params.ph === "number") {
-    parts.push(`pH ${params.ph.toFixed(2)}`);
-  }
-  if (typeof params.dissolvedOxygen === "number") {
-    parts.push(`DO ${params.dissolvedOxygen.toFixed(1)} mg/L`);
-  }
-  if (typeof params.salinity === "number") {
-    parts.push(`Salinitas ${params.salinity.toFixed(1)} ppt`);
-  }
-  if (typeof params.turbidity === "number") {
-    parts.push(`Turbidity ${params.turbidity.toFixed(1)} NTU`);
-  }
+  const issues = buildIssuesFromParams(params);
+  const list = severity === "CRITICAL" ? issues.critical : issues.warning;
 
-  if (parts.length === 0) return null;
-  return `${severity}: ${parts.join(" • ")}`;
+  if (list.length === 0) return null;
+  if (severity === "CRITICAL" && issues.warning.length > 0) {
+    return `${severity}: ${list.join(" | ")} | Warning: ${issues.warning.join(" | ")}`;
+  }
+  return `${severity}: ${list.join(" | ")}`;
 }
 
 function stripDoublePrefix(message: string): string {
   return message
     .replace(/^(CRITICAL|WARNING):\s*(CRITICAL|WARNING):\s*/i, "$1: ")
     .trim();
+}
+
+function normalizeMessage(message: string): string {
+  return stripDoublePrefix(message).replace(/\s+/g, " ").trim();
 }
 
 export async function GET() {
@@ -269,7 +314,23 @@ export async function GET() {
       }),
     );
 
-    notifications.sort((a, b) => {
+    const dedupedNotifications = new Map<string, (typeof notifications)[number]>();
+    for (const item of notifications) {
+      const key = `${item.severity}|${item.pondName}|${normalizeMessage(item.message)}`;
+      const existing = dedupedNotifications.get(key);
+      if (!existing) {
+        dedupedNotifications.set(key, item);
+        continue;
+      }
+
+      if (new Date(item.timestamp).getTime() > new Date(existing.timestamp).getTime()) {
+        dedupedNotifications.set(key, item);
+      }
+    }
+
+    const finalNotifications = Array.from(dedupedNotifications.values());
+
+    finalNotifications.sort((a, b) => {
       if (a.severity !== b.severity) {
         return a.severity === "critical" ? -1 : 1;
       }
@@ -278,8 +339,8 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: notifications,
-      total: notifications.length,
+      data: finalNotifications,
+      total: finalNotifications.length,
     });
   } catch (error) {
     console.error("Notifications alerts fetch error:", error);
