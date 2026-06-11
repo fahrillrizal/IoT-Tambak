@@ -10,6 +10,7 @@ const TELEMETRY_KEYS = [
   "dissolvedOxygen",
   "salinity",
   "turbidity",
+  "batteryLevel",
 ];
 
 interface NotificationRow {
@@ -41,6 +42,7 @@ function evaluateSeverity(data: {
   dissolvedOxygen?: number | null;
   salinity?: number | null;
   turbidity?: number | null;
+  batteryLevel?: number | null;
 }): "CRITICAL" | "WARNING" | null {
   const t = data.temperature ?? undefined;
   const p = data.ph ?? undefined;
@@ -48,6 +50,7 @@ function evaluateSeverity(data: {
   const s = data.salinity ?? undefined;
   const tb = data.turbidity ?? undefined;
 
+  // Water quality only — battery is handled separately
   if (
     (t !== undefined && (t < 26 || t > 32)) ||
     (p !== undefined && (p < 7.5 || p > 8.5)) ||
@@ -69,6 +72,10 @@ function evaluateSeverity(data: {
   }
 
   return null;
+}
+
+function isBatteryLow(batteryLevel?: number | null): boolean {
+  return batteryLevel !== undefined && batteryLevel !== null && batteryLevel < 15;
 }
 
 type IssueBuckets = {
@@ -221,7 +228,21 @@ export async function GET() {
         row.parameters && typeof row.parameters === "object"
           ? (row.parameters as Record<string, unknown>)
           : {};
-      const computedMessage = buildMessageFromParams(row.severity, params);
+
+      // Detect if this is a battery-only alarm
+      const hasBattery =
+        typeof params.batteryLevel === "number" && params.batteryLevel < 15;
+      const hasWaterQuality =
+        params.temperature != null ||
+        params.ph != null ||
+        params.dissolvedOxygen != null ||
+        params.salinity != null ||
+        params.turbidity != null;
+      const isBatteryOnly = hasBattery && !hasWaterQuality;
+
+      const computedMessage = isBatteryOnly
+        ? `Battery LOW: ${(params.batteryLevel as number).toFixed(0)}% (min: 15%)`
+        : buildMessageFromParams(row.severity, params);
 
       return {
         id: `notif-db-${String(row.id)}`,
@@ -230,10 +251,12 @@ export async function GET() {
         message: computedMessage || stripDoublePrefix(row.message),
         pondName: row.pondName || "Pond",
         action:
-          row.action ||
-          (row.severity === "CRITICAL"
-            ? "CHECK POND IMMEDIATELY!"
-            : "Needs inspection"),
+          isBatteryOnly
+            ? "Charge or replace battery"
+            : row.action ||
+              (row.severity === "CRITICAL"
+                ? "CHECK POND IMMEDIATELY!"
+                : "Needs inspection"),
         timestamp: new Date(row.eventTime).toISOString(),
         deviceId: row.tbDeviceId,
       };
@@ -275,41 +298,63 @@ export async function GET() {
             dissolvedOxygen: getLatestValue(latest.dissolvedOxygen),
             salinity: getLatestValue(latest.salinity),
             turbidity: getLatestValue(latest.turbidity),
+            batteryLevel: getLatestValue(latest.batteryLevel),
           };
 
           const severity = evaluateSeverity(data);
-          if (!severity) return;
+          const batteryLow = isBatteryLow(data.batteryLevel);
 
-          const paramsMessage = buildMessageFromParams(severity, {
-            temperature: data.temperature,
-            ph: data.ph,
-            dissolvedOxygen: data.dissolvedOxygen,
-            salinity: data.salinity,
-            turbidity: data.turbidity,
-          });
+          if (!severity && !batteryLow) return;
 
-          const latestTs = Math.max(
-            getLatestTimestamp(latest.temperature) ?? 0,
-            getLatestTimestamp(latest.ph) ?? 0,
-            getLatestTimestamp(latest.dissolvedOxygen) ?? 0,
-            getLatestTimestamp(latest.salinity) ?? 0,
-            getLatestTimestamp(latest.turbidity) ?? 0,
-          );
+          // Water quality notification (separate from battery)
+          if (severity) {
+            const paramsMessage = buildMessageFromParams(severity, {
+              temperature: data.temperature,
+              ph: data.ph,
+              dissolvedOxygen: data.dissolvedOxygen,
+              salinity: data.salinity,
+              turbidity: data.turbidity,
+            });
 
-          notifications.push({
-            id: `notif-rt-${tbDeviceId}-${latestTs || Date.now()}`,
-            targetId: `rt-${tbDeviceId}-${latestTs || Date.now()}`,
-            severity: severity === "CRITICAL" ? "critical" : "warning",
-            message:
-              paramsMessage || `${severity}: Water quality is not normal`,
-            pondName: device.pond?.name || "Pond",
-            action:
-              severity === "CRITICAL"
-                ? "CHECK POND IMMEDIATELY!"
-                : "Needs inspection",
-            timestamp: new Date(latestTs || Date.now()).toISOString(),
-            deviceId: tbDeviceId,
-          });
+            const latestTs = Math.max(
+              getLatestTimestamp(latest.temperature) ?? 0,
+              getLatestTimestamp(latest.ph) ?? 0,
+              getLatestTimestamp(latest.dissolvedOxygen) ?? 0,
+              getLatestTimestamp(latest.salinity) ?? 0,
+              getLatestTimestamp(latest.turbidity) ?? 0,
+            );
+
+            notifications.push({
+              id: `notif-rt-${tbDeviceId}-wq-${latestTs || Date.now()}`,
+              targetId: `rt-${tbDeviceId}-wq-${latestTs || Date.now()}`,
+              severity: severity === "CRITICAL" ? "critical" : "warning",
+              message:
+                paramsMessage || `${severity}: Water quality is not normal`,
+              pondName: device.pond?.name || "Pond",
+              action:
+                severity === "CRITICAL"
+                  ? "CHECK POND IMMEDIATELY!"
+                  : "Needs inspection",
+              timestamp: new Date(latestTs || Date.now()).toISOString(),
+              deviceId: tbDeviceId,
+            });
+          }
+
+          // Battery low notification (separate from water quality)
+          if (batteryLow) {
+            const batTs = getLatestTimestamp(latest.batteryLevel) ?? Date.now();
+
+            notifications.push({
+              id: `notif-rt-${tbDeviceId}-bat-${batTs}`,
+              targetId: `rt-${tbDeviceId}-bat-${batTs}`,
+              severity: "warning",
+              message: `Battery LOW: ${data.batteryLevel?.toFixed(0)}% (min: 15%)`,
+              pondName: device.pond?.name || "Pond",
+              action: "Charge or replace battery",
+              timestamp: new Date(batTs).toISOString(),
+              deviceId: tbDeviceId,
+            });
+          }
         } catch {}
       }),
     );

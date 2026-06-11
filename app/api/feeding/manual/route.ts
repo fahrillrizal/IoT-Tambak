@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { thingsboardService } from "@/lib/thingsboard";
 
-const AI_API = process.env.AI_API_URL ?? "https://hehehe.tech";
+const AI_API = process.env.AI_API_URL ?? "https://ai.hehehe.tech";
 const AI_KEY = process.env.AI_API_KEY ?? "";
 
 interface AIManualResponse {
