@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         await sendTelegramMessage(
           chatId,
           `❌ Link expired or invalid.\n\n` +
-            `Open the TascaID app → Profile → click "Connect Telegram" again to get a new link.`,
+            `Open the app → Profile → click "Connect Telegram" again to get a new link.`,
         );
         return NextResponse.json({ ok: true });
       }
@@ -81,8 +81,8 @@ export async function POST(request: NextRequest) {
         await sendTelegramMessage(
           chatId,
           `Hi ${name}! 👋\n\n` +
-            `To connect your TascaID account:\n` +
-            `1. Open the TascaID app\n` +
+            `To connect your account:\n` +
+            `1. Open the app\n` +
             `2. Go to the Profile page\n` +
             `3. Tap "Connect Telegram"\n` +
             `4. Click the link — you will be redirected here automatically\n\n` +
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         chatId,
         user
           ? `✅ Connected!\n\nAccount: ${user.name}\nEmail: ${user.email}\n\nNotifications are active.`
-          : `❌ Not connected.\n\nOpen TascaID Profile → click "Connect Telegram".`,
+          : `❌ Not connected.\n\nOpen Profile → click "Connect Telegram".`,
       );
       return NextResponse.json({ ok: true });
     }
