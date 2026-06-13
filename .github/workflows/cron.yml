@@ -6,6 +6,7 @@ on:
     - cron: '5 * * * *'
     # Daily - at 17:05 UTC = 00:05 WIB (next day)
     - cron: '5 17 * * *'
+  workflow_dispatch:
 
 jobs:
   cron-tasks:
