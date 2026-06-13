@@ -42,18 +42,28 @@ export async function POST(request: NextRequest) {
 
     const history = await thingsboardService.getTelemetryHistory(
       device.thingsboardDeviceId,
-      ["temperature"],
+      ["temperature", "ph", "dissolvedOxygen"],
       startUTC.getTime(),
       endUTC.getTime(),
       1
     );
 
-    const hasData = history?.temperature?.length > 0;
+    const hasData =
+      history?.temperature?.length > 0 ||
+      history?.ph?.length > 0 ||
+      history?.dissolvedOxygen?.length > 0;
 
     let isValidData = false;
-    if (hasData && history.temperature[0]) {
-      const value = parseFloat(history.temperature[0].value);
-      isValidData = value !== 0;
+    if (hasData) {
+      // Check any available key for non-zero value
+      const firstValue =
+        history?.temperature?.[0]?.value ??
+        history?.ph?.[0]?.value ??
+        history?.dissolvedOxygen?.[0]?.value;
+      if (firstValue) {
+        const value = parseFloat(firstValue);
+        isValidData = value !== 0;
+      }
     }
 
     return NextResponse.json({
