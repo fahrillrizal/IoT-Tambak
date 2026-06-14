@@ -2,40 +2,45 @@ name: Cron Jobs - Hourly & Daily Summary
 
 on:
   schedule:
-    # Hourly - every hour at minute 5 (UTC, same for WIB)
+    # Hourly - every hour at minute 5
     - cron: '5 * * * *'
     # Daily - at 17:05 UTC = 00:05 WIB (next day)
     - cron: '5 17 * * *'
   workflow_dispatch:
 
 jobs:
-  cron-tasks:
+  hourly:
     runs-on: ubuntu-latest
     steps:
       - name: Check if there is new data
         id: check
         run: |
-          RESPONSE=$(curl -s -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/check-data \
+          RESPONSE=$(curl -sL -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/check-data \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json")
           echo "Response: $RESPONSE"
           HAS_DATA=$(echo $RESPONSE | jq -r '.hasData')
           echo "hasData=$HAS_DATA" >> $GITHUB_OUTPUT
-          
-      - name: Trigger hourly summary (only if data exists)
+
+      - name: Trigger hourly summary
         if: steps.check.outputs.hasData == 'true'
         run: |
-          curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/hourly-summary \
+          RESPONSE=$(curl -sL -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/hourly-summary \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json")
+          echo "Response: $RESPONSE"
 
-      - name: Skip notification (if no data)
+      - name: Skip notification (no data)
         if: steps.check.outputs.hasData != 'true'
         run: echo "⏭️ Skipped - no new data available"
 
-      - name: Trigger daily summary (at 00:05 WIB / 17:05 UTC)
-        if: github.event.schedule == '5 17 * * *'
+  daily:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '5 17 * * *'
+    steps:
+      - name: Trigger daily summary
         run: |
-          curl -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/daily-summary \
+          RESPONSE=$(curl -sL -X POST https://${{ secrets.VERCEL_DOMAIN }}/api/cron/daily-summary \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json")
+          echo "Response: $RESPONSE"
