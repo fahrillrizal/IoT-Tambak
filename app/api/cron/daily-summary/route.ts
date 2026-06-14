@@ -1,8 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveDailySummaryForYesterday } from "@/lib/daily-summary-scheduler";
 import { pusher } from "@/lib/pusher";
+import { prisma } from "@/lib/db";
 
 const CRON_SECRET = process.env.CRON_SECRET;
+
+async function updateShrimpAgeDays() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const ponds = await prisma.pond.findMany({
+    where: {
+      isActive: true,
+      stockingDate: { not: null },
+    },
+    select: { id: true, stockingDate: true },
+  });
+
+  let updated = 0;
+  for (const pond of ponds) {
+    if (!pond.stockingDate) continue;
+    const diffDays = Math.floor(
+      (today.getTime() - new Date(pond.stockingDate).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    await prisma.pond.update({
+      where: { id: pond.id },
+      data: { shrimpAgeDays: Math.max(0, diffDays) },
+    });
+    updated++;
+  }
+
+  return updated;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +48,9 @@ export async function POST(request: NextRequest) {
 
     const result = await saveDailySummaryForYesterday();
 
+    const pondsUpdated = await updateShrimpAgeDays();
+    console.log(`🦐 Updated shrimp age for ${pondsUpdated} ponds`);
+
     if (result.saved > 0) {
       await pusher.trigger("global-telemetry", "summary-updated", {
         type: "daily",
@@ -33,6 +65,7 @@ export async function POST(request: NextRequest) {
           ? "Daily summary saved successfully"
           : "No data to save (all zero or no data)",
       result,
+      pondsUpdated,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

@@ -4,7 +4,7 @@ import { triggerAlertEvent } from "@/lib/pusher";
 import { buildAlertTelegramMessage, sendTelegramMessage } from "@/lib/telegram";
 import { Prisma } from "@prisma/client";
 
-const ALERT_WEBHOOK_SECRET = process.env.TB_WEBHOOK_SECRET || "";
+const ALERT_WEBHOOK_SECRET = process.env.TB_WEBHOOK_SECRET;
 
 function normalizeSecret(value: string): string {
   return value.trim().replace(/ /g, "+");

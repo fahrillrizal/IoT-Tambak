@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pusher, triggerDeviceStatusUpdate } from "@/lib/pusher";
 import { prisma } from "@/lib/db";
 
-const WEBHOOK_SECRET = process.env.TB_WEBHOOK_SECRET || "";
+const WEBHOOK_SECRET = process.env.TB_WEBHOOK_SECRET;
 
 export async function POST(request: NextRequest) {
   try {

@@ -3,7 +3,7 @@ import { saveDailySummaryForYesterday } from './daily-summary-scheduler';
 import { saveHourlySummaryForLastHour } from './hourly-summary-scheduler';
 import { runAIAutoFeeding } from './ai-feeding-scheduler';
 
-const AI_FEEDING_MODE = (process.env.AI_AUTO_FEEDING_MODE || "cron").toLowerCase();
+const AI_FEEDING_MODE = (process.env.AI_AUTO_FEEDING_MODE ?? "cron").toLowerCase();
 
 let cronJobStarted = false;
 

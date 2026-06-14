@@ -37,6 +37,7 @@ interface Device {
 interface Pond {
   id: number;
   name: string;
+  stockingDate?: string | null;
   _count: { devices: number };
 }
 
@@ -60,6 +61,9 @@ export default function DevicesPageClient({
   const [newPondName, setNewPondName] = useState("");
   const [showNewPondInput, setShowNewPondInput] = useState(false);
   const [creatingPond, setCreatingPond] = useState(false);
+  const [editingStockingDate, setEditingStockingDate] = useState(false);
+  const [stockingDateValue, setStockingDateValue] = useState("");
+  const [savingStockingDate, setSavingStockingDate] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -225,6 +229,51 @@ export default function DevicesPageClient({
       setError(err instanceof Error ? err.message : "Failed to create pond");
     } finally {
       setCreatingPond(false);
+    }
+  };
+
+  const handleEditStockingDate = () => {
+    const pond = ponds.find((p) => p.id === selectedDevice?.pondId);
+    setStockingDateValue(
+      pond?.stockingDate ? new Date(pond.stockingDate).toISOString().split("T")[0] : ""
+    );
+    setEditingStockingDate(true);
+  };
+
+  const handleSaveStockingDate = async () => {
+    if (!selectedDevice) return;
+
+    try {
+      setSavingStockingDate(true);
+      setError(null);
+
+      const response = await fetch(`/api/ponds/${selectedDevice.pondId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stockingDate: stockingDateValue || null }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update stocking date");
+      }
+
+      setPonds(
+        ponds.map((p) =>
+          p.id === selectedDevice.pondId
+            ? { ...p, stockingDate: stockingDateValue || null }
+            : p
+        )
+      );
+
+      setEditingStockingDate(false);
+      setDeleteSuccess("Stocking date updated successfully");
+      setTimeout(() => setDeleteSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update stocking date");
+    } finally {
+      setSavingStockingDate(false);
     }
   };
 
@@ -471,6 +520,83 @@ export default function DevicesPageClient({
                             size="sm"
                             variant="outline"
                             onClick={() => handleEditPond(selectedDevice)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">
+                        Stocking Date
+                      </label>
+                      {editingStockingDate ? (
+                        <div className="mt-2 space-y-2">
+                          <input
+                            type="date"
+                            value={stockingDateValue}
+                            onChange={(e) => setStockingDateValue(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={handleSaveStockingDate}
+                              disabled={savingStockingDate}
+                              className="flex-1"
+                            >
+                              {savingStockingDate ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingStockingDate(false)}
+                              disabled={savingStockingDate}
+                              className="flex-1"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between mt-2">
+                          <div>
+                            {(() => {
+                              const pond = ponds.find((p) => p.id === selectedDevice.pondId);
+                              if (pond?.stockingDate) {
+                                const stDate = new Date(pond.stockingDate);
+                                const today = new Date();
+                                const diffDays = Math.floor(
+                                  (today.getTime() - stDate.getTime()) / (1000 * 60 * 60 * 24)
+                                );
+                                return (
+                                  <>
+                                    <p className="text-gray-900 font-semibold">
+                                      {stDate.toLocaleDateString()}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Shrimp age: {diffDays} days
+                                    </p>
+                                  </>
+                                );
+                              }
+                              return (
+                                <p className="text-gray-500 text-sm italic">Not set</p>
+                              );
+                            })()}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleEditStockingDate}
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
