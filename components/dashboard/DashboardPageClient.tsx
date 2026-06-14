@@ -20,7 +20,7 @@ export default function DashboardPageClient({ defaultCollapsed }: DashboardPageC
   const { sensorData } = useSensorData(selectedDevice);
   const { schedules } = useFeedingSchedule();
   const { showModal, handlePasswordSet, handleClose } = usePasswordCheck();
-  const { chartData: weeklyChartData } = useWeeklyChart(selectedDevice);
+  const { chartData: weeklyChartData } = useWeeklyChart(currentDevice?.pondId);
 
   if (status === "loading" || devicesLoading) {
     return (

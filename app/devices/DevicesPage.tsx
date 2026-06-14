@@ -20,7 +20,6 @@ import {
   Trash2,
   CheckCircle2,
   Edit2,
-  X,
 } from "lucide-react";
 
 interface Device {
@@ -58,6 +57,9 @@ export default function DevicesPageClient({
   const [editingDeviceId, setEditingDeviceId] = useState<number | null>(null);
   const [selectedPondId, setSelectedPondId] = useState<string>("");
   const [savingPond, setSavingPond] = useState(false);
+  const [newPondName, setNewPondName] = useState("");
+  const [showNewPondInput, setShowNewPondInput] = useState(false);
+  const [creatingPond, setCreatingPond] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -187,6 +189,43 @@ export default function DevicesPageClient({
   const handleCancelEdit = () => {
     setEditingDeviceId(null);
     setSelectedPondId("");
+    setShowNewPondInput(false);
+    setNewPondName("");
+  };
+
+  const handleCreateNewPond = async () => {
+    if (!newPondName.trim()) {
+      setError("Pond name is required");
+      return;
+    }
+
+    try {
+      setCreatingPond(true);
+      setError(null);
+
+      const response = await fetch("/api/ponds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newPondName.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create pond");
+      }
+
+      // Add new pond to list and select it
+      const newPond = { id: data.data.id, name: data.data.name, _count: { devices: 0 } };
+      setPonds((prev) => [...prev, newPond]);
+      setSelectedPondId(newPond.id.toString());
+      setShowNewPondInput(false);
+      setNewPondName("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create pond");
+    } finally {
+      setCreatingPond(false);
+    }
   };
 
   const selectedDevice = devices.find((d) => d.id === selectedDeviceId);
@@ -318,50 +357,110 @@ export default function DevicesPageClient({
                       </label>
                       {editingDeviceId === selectedDevice.id ? (
                         <div className="mt-2 space-y-2">
-                          <Select
-                            value={selectedPondId}
-                            onValueChange={setSelectedPondId}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select pond" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ponds.map((pond) => (
-                                <SelectItem
-                                  key={pond.id}
-                                  value={pond.id.toString()}
+                          {showNewPondInput ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={newPondName}
+                                onChange={(e) => setNewPondName(e.target.value)}
+                                placeholder="Enter new pond name"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleCreateNewPond();
+                                  if (e.key === "Escape") {
+                                    setShowNewPondInput(false);
+                                    setNewPondName("");
+                                  }
+                                }}
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={handleCreateNewPond}
+                                  disabled={creatingPond || !newPondName.trim()}
+                                  className="flex-1"
                                 >
-                                  {pond.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleSavePond(selectedDevice.id)}
-                              disabled={savingPond}
-                              className="flex-1"
-                            >
-                              {savingPond ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                "Save"
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handleCancelEdit}
-                              disabled={savingPond}
-                              className="flex-1"
-                            >
-                              Cancel
-                            </Button>
-                          </div>
+                                  {creatingPond ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      Creating...
+                                    </>
+                                  ) : (
+                                    "Create & Select"
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setShowNewPondInput(false);
+                                    setNewPondName("");
+                                  }}
+                                  disabled={creatingPond}
+                                  className="flex-1"
+                                >
+                                  Back
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <Select
+                                value={selectedPondId}
+                                onValueChange={(value) => {
+                                  if (value === "__new__") {
+                                    setShowNewPondInput(true);
+                                  } else {
+                                    setSelectedPondId(value);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select pond" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ponds.map((pond) => (
+                                    <SelectItem
+                                      key={pond.id}
+                                      value={pond.id.toString()}
+                                    >
+                                      {pond.name}
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem value="__new__" className="text-blue-600 font-medium">
+                                    + Add New Pond
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSavePond(selectedDevice.id)}
+                                  disabled={savingPond || !selectedPondId || selectedPondId === "__new__"}
+                                  className="flex-1"
+                                >
+                                  {savingPond ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      Saving...
+                                    </>
+                                  ) : (
+                                    "Save"
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleCancelEdit}
+                                  disabled={savingPond}
+                                  className="flex-1"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <div className="flex items-center justify-between mt-2">
