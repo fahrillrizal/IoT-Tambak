@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         pondSize: true,
         waterVolume: true,
         shrimpAgeDays: true,
+        population: true,
         biomass: true,
         stockingDate: true,
         thingsboardDeviceId: true,

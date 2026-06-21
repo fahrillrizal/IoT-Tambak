@@ -38,6 +38,7 @@ interface Pond {
   id: number;
   name: string;
   stockingDate?: string | null;
+  population?: number | null;
   _count: { devices: number };
 }
 
@@ -63,6 +64,7 @@ export default function DevicesPageClient({
   const [creatingPond, setCreatingPond] = useState(false);
   const [editingStockingDate, setEditingStockingDate] = useState(false);
   const [stockingDateValue, setStockingDateValue] = useState("");
+  const [populationValue, setPopulationValue] = useState("");
   const [savingStockingDate, setSavingStockingDate] = useState(false);
 
   useEffect(() => {
@@ -237,6 +239,7 @@ export default function DevicesPageClient({
     setStockingDateValue(
       pond?.stockingDate ? new Date(pond.stockingDate).toISOString().split("T")[0] : ""
     );
+    setPopulationValue(pond?.population ? pond.population.toString() : "");
     setEditingStockingDate(true);
   };
 
@@ -250,7 +253,10 @@ export default function DevicesPageClient({
       const response = await fetch(`/api/ponds/${selectedDevice.pondId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stockingDate: stockingDateValue || null }),
+        body: JSON.stringify({
+          stockingDate: stockingDateValue || null,
+          population: populationValue ? parseInt(populationValue) : null,
+        }),
       });
 
       const data = await response.json();
@@ -262,13 +268,17 @@ export default function DevicesPageClient({
       setPonds(
         ponds.map((p) =>
           p.id === selectedDevice.pondId
-            ? { ...p, stockingDate: stockingDateValue || null }
+            ? {
+                ...p,
+                stockingDate: stockingDateValue || null,
+                population: populationValue ? parseInt(populationValue) : null,
+              }
             : p
         )
       );
 
       setEditingStockingDate(false);
-      setDeleteSuccess("Stocking date updated successfully");
+      setDeleteSuccess("Stocking date & population updated successfully");
       setTimeout(() => setDeleteSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update stocking date");
@@ -539,6 +549,19 @@ export default function DevicesPageClient({
                             onChange={(e) => setStockingDateValue(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
+                          <div>
+                            <label className="text-xs text-gray-500">
+                              Population (ekor)
+                            </label>
+                            <input
+                              type="number"
+                              value={populationValue}
+                              onChange={(e) => setPopulationValue(e.target.value)}
+                              placeholder="e.g. 10000"
+                              min="0"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -585,6 +608,11 @@ export default function DevicesPageClient({
                                     <p className="text-xs text-gray-500">
                                       Shrimp age: {diffDays} days
                                     </p>
+                                    {pond.population && (
+                                      <p className="text-xs text-gray-500">
+                                        Population: {pond.population.toLocaleString()} ekor
+                                      </p>
+                                    )}
                                   </>
                                 );
                               }

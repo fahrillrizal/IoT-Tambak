@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { thingsboardService } from "@/lib/thingsboard";
 
-const AI_API = process.env.AI_API_URL ?? "https://hehehe.tech";
+const AI_API = process.env.AI_API_URL ?? "https://ai.hehehe.tech";
 const AI_KEY = process.env.AI_API_KEY ?? "";
 
 interface AIManualResponse {
@@ -37,9 +37,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const body = (await req.json()) as ManualFeedingBody;
     const { pondId, requestedAmount } = body;
 
-    if (!pondId || !requestedAmount) {
+    if (!pondId || !requestedAmount || requestedAmount <= 0) {
       return NextResponse.json(
-        { error: "pondId and requestedAmount are required" },
+        { error: "pondId and requestedAmount (> 0) are required" },
         { status: 400 },
       );
     }
@@ -73,72 +73,92 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // ── Kumpulkan warnings (non-blocking) ──────────────────────
+    const warnings: string[] = [];
+
+    // 1. Cek apakah terlalu dekat dengan feeding terakhir
+    const lastFeeding = await prisma.feedingHistory.findFirst({
+      where: { pondId, feedingStatus: "COMPLETED" },
+      orderBy: { executedAt: "desc" },
+      select: { amount: true, executedAt: true, feedingType: true },
+    });
+
+    if (lastFeeding) {
+      const minutesAgo = Math.round(
+        (Date.now() - lastFeeding.executedAt.getTime()) / 1000 / 60,
+      );
+      if (minutesAgo < 10) {
+        warnings.push(
+          `Peringatan: Pakan terakhir diberikan ${minutesAgo} menit lalu (${lastFeeding.feedingType}). Risiko overfeeding.`,
+        );
+      }
+    }
+
+    // 2. Panggil AI untuk cek kualitas air & jumlah wajar (non-blocking)
+    let aiWarnings: string[] = [];
+    let waterQuality = "unknown";
+    let confidence = 0;
+    let aiReason = "";
+
     const latestSensor = await prisma.hourlySummary.findFirst({
       where: { pondId },
       orderBy: { timestamp: "desc" },
     });
 
-    if (!latestSensor) {
-      return NextResponse.json(
-        { error: "No sensor data yet." },
-        { status: 400 },
-      );
+    if (latestSensor) {
+      try {
+        const aiRes = await fetch(`${AI_API}/predict/manual`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(AI_KEY ? { "X-API-Key": AI_KEY } : {}),
+          },
+          body: JSON.stringify({
+            pond_id: pondId,
+            device_id: feederDevice.id,
+            temperature: Number(latestSensor.avgTemperature),
+            ph: Number(latestSensor.avgPh),
+            dissolved_oxygen: Number(latestSensor.avgDissolvedOxygen),
+            salinity: Number(latestSensor.avgSalinity),
+            turbidity: Number(latestSensor.avgTurbidity),
+            requested_amount: requestedAmount,
+          }),
+          signal: AbortSignal.timeout(8000),
+        });
+
+        if (aiRes.ok) {
+          const aiResult = (await aiRes.json()) as AIManualResponse;
+          waterQuality = aiResult.water_quality;
+          confidence = aiResult.confidence;
+          aiReason = aiResult.reason;
+          aiWarnings = aiResult.warnings || [];
+
+          // Jika AI menolak, jadikan peringatan (bukan blocking)
+          if (!aiResult.approved) {
+            warnings.push(`Peringatan AI: ${aiResult.reason}`);
+          }
+        } else {
+          console.warn(`[Manual Feed] AI API returned ${aiRes.status}, proceeding without AI validation`);
+        }
+      } catch (aiErr) {
+        console.warn("[Manual Feed] AI API unreachable, proceeding without AI validation:", aiErr);
+      }
+    } else {
+      warnings.push("Belum ada data sensor. Pemberian pakan tetap dilanjutkan tanpa validasi kualitas air.");
     }
 
-    const lastFeeding = await prisma.feedingHistory.findFirst({
-      where: { pondId, feedingStatus: "COMPLETED" },
-      orderBy: { executedAt: "desc" },
-      select: { amount: true },
-    });
+    // Gabung semua warnings
+    const allWarnings = [...warnings, ...aiWarnings];
 
-    const aiRes = await fetch(`${AI_API}/predict/manual`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(AI_KEY ? { "X-API-Key": AI_KEY } : {}),
-      },
-      body: JSON.stringify({
-        temperature: Number(latestSensor.avgTemperature),
-        ph: Number(latestSensor.avgPh),
-        dissolved_oxygen: Number(latestSensor.avgDissolvedOxygen),
-        salinity: Number(latestSensor.avgSalinity),
-        turbidity: Number(latestSensor.avgTurbidity),
-        shrimp_age_days: pond.shrimpAgeDays ?? 0,
-        feeding_history_g: lastFeeding ? Number(lastFeeding.amount) : 0,
-        requested_amount: requestedAmount,
-        pond_id: pondId,
-      }),
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (!aiRes.ok) {
-      return NextResponse.json(
-        { error: "AI API is unreachable", details: await aiRes.text() },
-        { status: 502 },
-      );
-    }
-
-    const aiResult = (await aiRes.json()) as AIManualResponse;
-
-    if (!aiResult.approved) {
-      return NextResponse.json({
-        success: false,
-        approved: false,
-        water_quality: aiResult.water_quality,
-        reason: aiResult.reason,
-        warnings: aiResult.warnings,
-        confidence: aiResult.confidence,
-      });
-    }
-
+    // ── Selalu kirim RPC (user override) ─────────────────────────
     let rpcSent = false;
     try {
       await thingsboardService.sendRPCOneway(
         feederDevice.thingsboardDeviceId,
         "triggerFeeding",
         {
-          amount_g: aiResult.feed_amount_g,
-          source: "manual",
+          amount_g: requestedAmount,
+          source: "manual_override",
           ts: Date.now(),
         },
       );
@@ -152,58 +172,59 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           pondId,
           feedingType: "MANUAL",
           feedingStatus: "FAILED",
-          amount: aiResult.feed_amount_g,
+          amount: requestedAmount,
           plannedAmount: requestedAmount,
-          temperature: latestSensor.avgTemperature,
-          ph: latestSensor.avgPh,
-          dissolvedOxygen: latestSensor.avgDissolvedOxygen,
-          salinity: latestSensor.avgSalinity,
-          turbidity: latestSensor.avgTurbidity,
+          temperature: latestSensor?.avgTemperature ?? null,
+          ph: latestSensor?.avgPh ?? null,
+          dissolvedOxygen: latestSensor?.avgDissolvedOxygen ?? null,
+          salinity: latestSensor?.avgSalinity ?? null,
+          turbidity: latestSensor?.avgTurbidity ?? null,
           executedAt: new Date(),
           triggeredBy: userId,
-          notes: `Manual feeding — RPC failed: ${String(rpcErr)}`,
+          notes: `Manual override — RPC failed: ${String(rpcErr)}`,
         },
       });
 
       return NextResponse.json(
         {
           error: "Failed to send command to device",
-          approved: true,
           rpc_sent: false,
+          warnings: allWarnings,
         },
         { status: 502 },
       );
     }
 
+    // ── Catat feeding berhasil ───────────────────────────────────
     const feedRecord = await prisma.feedingHistory.create({
       data: {
         deviceId: feederDevice.id,
         pondId,
         feedingType: "MANUAL",
         feedingStatus: "COMPLETED",
-        amount: aiResult.feed_amount_g,
+        amount: requestedAmount,
         plannedAmount: requestedAmount,
-        temperature: latestSensor.avgTemperature,
-        ph: latestSensor.avgPh,
-        dissolvedOxygen: latestSensor.avgDissolvedOxygen,
-        salinity: latestSensor.avgSalinity,
-        turbidity: latestSensor.avgTurbidity,
+        temperature: latestSensor?.avgTemperature ?? null,
+        ph: latestSensor?.avgPh ?? null,
+        dissolvedOxygen: latestSensor?.avgDissolvedOxygen ?? null,
+        salinity: latestSensor?.avgSalinity ?? null,
+        turbidity: latestSensor?.avgTurbidity ?? null,
         executedAt: new Date(),
         triggeredBy: userId,
-        notes: `Manual feeding via dashboard. Confidence: ${aiResult.confidence}`,
+        notes: allWarnings.length > 0
+          ? `Manual override dengan peringatan: ${allWarnings.join("; ")}`
+          : `Manual override via dashboard.`,
       },
     });
 
     return NextResponse.json({
       success: true,
-      approved: true,
       rpc_sent: rpcSent,
-      feed_amount_g: aiResult.feed_amount_g,
-      requested_g: requestedAmount,
-      water_quality: aiResult.water_quality,
-      reason: aiResult.reason,
-      warnings: aiResult.warnings,
-      confidence: aiResult.confidence,
+      feed_amount_g: requestedAmount,
+      water_quality: waterQuality,
+      confidence,
+      reason: aiReason || "Manual override — pakan diberikan sesuai permintaan user.",
+      warnings: allWarnings,
       feeding_id: feedRecord.id.toString(),
       device_name: feederDevice.name,
     });

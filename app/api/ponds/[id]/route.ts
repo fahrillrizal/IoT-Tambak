@@ -65,6 +65,10 @@ export async function PATCH(
       updateData.waterVolume = body.waterVolume ? parseFloat(body.waterVolume) : null;
     }
 
+    if ("population" in body) {
+      updateData.population = body.population ? parseInt(body.population) : null;
+    }
+
     if ("biomass" in body) {
       updateData.biomass = body.biomass ? parseFloat(body.biomass) : null;
     }

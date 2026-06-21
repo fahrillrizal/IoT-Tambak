@@ -189,18 +189,17 @@ export async function runAIAutoFeeding() {
       continue;
     }
 
-    const lastAI = await prisma.feedingHistory.findFirst({
+    const lastFeeding = await prisma.feedingHistory.findFirst({
       where: {
         pondId: pond.id,
-        feedingType: "AI",
         feedingStatus: "COMPLETED",
       },
       orderBy: { executedAt: "desc" },
     });
 
-    if (lastAI && minutesSince(lastAI.executedAt) < COOLDOWN_MINUTES) {
+    if (lastFeeding && minutesSince(lastFeeding.executedAt) < COOLDOWN_MINUTES) {
       console.log(
-        `⏭️  AI feeding cooldown active for pond ${pond.id} (${pond.name})`,
+        `⏭️  Feeding cooldown active for pond ${pond.id} (${pond.name}) — last feed was ${lastFeeding.feedingType} at ${lastFeeding.executedAt.toISOString()}`,
       );
       continue;
     }
@@ -286,17 +285,16 @@ export async function runAIAutoFeedingFromWebhook(params: {
     return { skipped: "missing_tb_device_id" };
   }
 
-  const lastAI = await prisma.feedingHistory.findFirst({
+  const lastFeeding = await prisma.feedingHistory.findFirst({
     where: {
       pondId: device.pondId,
-      feedingType: "AI",
       feedingStatus: "COMPLETED",
     },
     orderBy: { executedAt: "desc" },
   });
 
-  if (lastAI && minutesSince(lastAI.executedAt) < COOLDOWN_MINUTES) {
-    return { skipped: "cooldown" };
+  if (lastFeeding && minutesSince(lastFeeding.executedAt) < COOLDOWN_MINUTES) {
+    return { skipped: "cooldown", lastFeedType: lastFeeding.feedingType };
   }
 
   const aiResult = await sendAIPredictionWithSensor(
