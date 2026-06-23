@@ -161,7 +161,6 @@ export async function runAIAutoFeeding() {
       devices: {
         where: {
           isActive: true,
-          deviceType: { in: ["FEEDER", "HYBRID"] },
           thingsboardDeviceId: { not: null },
         },
         select: { id: true, thingsboardDeviceId: true, name: true },

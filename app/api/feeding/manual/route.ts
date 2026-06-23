@@ -51,7 +51,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
       include: {
         devices: {
-          where: { isActive: true, deviceType: { in: ["FEEDER", "HYBRID"] } },
+          where: { isActive: true, thingsboardDeviceId: { not: null } },
           select: { id: true, thingsboardDeviceId: true, name: true },
           take: 1,
         },
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const feederDevice = pond.devices[0];
     if (!feederDevice?.thingsboardDeviceId) {
       return NextResponse.json(
-        { error: "No active feeder device in this pond" },
+        { error: "No active device in this pond" },
         { status: 400 },
       );
     }

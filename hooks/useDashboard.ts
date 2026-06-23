@@ -693,3 +693,134 @@ export function useDailySummary(pondId?: number) {
     refresh: fetchDailySummary,
   };
 }
+
+/**
+ * Hook for fetching real feeding frequency chart data (7-day bar chart)
+ */
+export function useFeedingChart(pondId?: number) {
+  const [chartData, setChartData] = useState<ChartData>({
+    labels: [],
+    datasets: [],
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchFeedingChart = useCallback(async (id?: number) => {
+    if (!id) {
+      setChartData({ labels: [], datasets: [] });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/history/feeding-chart?pondId=${id}`);
+      const result = await response.json();
+      if (result.success) {
+        setChartData(result.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch feeding chart:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (pondId) {
+      fetchFeedingChart(pondId);
+    }
+  }, [pondId, fetchFeedingChart]);
+
+  return { chartData, isLoading, refresh: fetchFeedingChart };
+}
+
+interface ScheduleItem {
+  id: number;
+  pondId: number;
+  name: string;
+  time: string;
+  amount: number;
+  daysOfWeek: string;
+  isActive: boolean;
+  status: "completed" | "pending" | "skipped";
+}
+
+/**
+ * Hook for fetching real feeding schedules from DB with CRUD support
+ */
+export function useRealFeedingSchedule(pondId?: number) {
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchSchedules = useCallback(async (id?: number) => {
+    if (!id) {
+      setSchedules([]);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/feeding-schedules?pondId=${id}`);
+      const result = await response.json();
+      if (result.success) {
+        setSchedules(result.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch feeding schedules:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const addSchedule = useCallback(
+    async (data: { time: string; amount: number; name?: string; daysOfWeek?: string }) => {
+      if (!pondId) return null;
+      try {
+        const response = await fetch("/api/feeding-schedules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pondId, ...data }),
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchSchedules(pondId);
+          return result.data;
+        }
+        return null;
+      } catch (err) {
+        console.error("Failed to add schedule:", err);
+        return null;
+      }
+    },
+    [pondId, fetchSchedules]
+  );
+
+  const deleteSchedule = useCallback(
+    async (id: number) => {
+      try {
+        const response = await fetch("/api/feeding-schedules", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        const result = await response.json();
+        if (result.success) {
+          setSchedules((prev) => prev.filter((s) => s.id !== id));
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.error("Failed to delete schedule:", err);
+        return false;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (pondId) {
+      fetchSchedules(pondId);
+    }
+  }, [pondId, fetchSchedules]);
+
+  return { schedules, isLoading, addSchedule, deleteSchedule, refetch: () => pondId && fetchSchedules(pondId) };
+}

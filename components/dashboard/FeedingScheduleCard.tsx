@@ -76,7 +76,7 @@ export default function FeedingScheduleCard({
                   <Icon className={`h-5 w-5 ${config.iconColor}`} />
                 </div>
                 <div className="text-2xl font-bold text-gray-900 mb-1">
-                  {schedule.amount}kg
+                  {schedule.amount}g
                 </div>
                 <div className="text-sm text-gray-600">
                   {config.label}
