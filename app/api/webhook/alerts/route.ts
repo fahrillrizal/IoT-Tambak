@@ -20,7 +20,7 @@ interface AlarmPayload {
     dissolvedOxygen?: number | null;
     salinity?: number | null;
     turbidity?: number | null;
-    batteryLevel?: number | null;
+    battery?: number | null;
   };
   timestamp: string;
   action: string;
@@ -157,8 +157,8 @@ export async function POST(request: NextRequest) {
     const telegramChatId = device.pond.user?.telegramChatId;
     if (telegramChatId) {
       const isBatteryAlarm =
-        body.parameters?.batteryLevel != null &&
-        body.parameters.batteryLevel < 15 &&
+        body.parameters?.battery != null &&
+        body.parameters.battery < 15 &&
         !body.parameters.temperature &&
         !body.parameters.ph &&
         !body.parameters.dissolvedOxygen &&
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
             `🔋 BATTERY LOW ALERT`,
             `Pond: ${device.pond.name || "Pond"}`,
             `Device: ${device.name || tbDeviceId}`,
-            `Battery: ${body.parameters.batteryLevel}%`,
+            `Battery: ${body.parameters.battery}%`,
             `Action: Charge or replace battery`,
             `Time: ${new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" })}`,
           ].join("\n")

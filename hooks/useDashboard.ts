@@ -112,7 +112,7 @@ export function useSensorData(deviceId?: string) {
     dissolvedOxygen: null,
     salinity: null,
     turbidity: null,
-    batteryLevel: null,
+    battery: null,
     status: "Offline",
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -140,7 +140,7 @@ export function useSensorData(deviceId?: string) {
           dissolvedOxygen: result.data.dissolvedOxygen ?? null,
           salinity: result.data.salinity ?? null,
           turbidity: result.data.turbidity ?? null,
-          batteryLevel: result.data.batteryLevel ?? null,
+          battery: result.data.battery ?? null,
         };
 
         setSensorData({
@@ -174,7 +174,7 @@ export function useSensorData(deviceId?: string) {
         dissolvedOxygen: null,
         salinity: null,
         turbidity: null,
-        batteryLevel: null,
+        battery: null,
         status: "Offline",
       });
       setIsConnected(false);
@@ -205,7 +205,7 @@ export function useSensorData(deviceId?: string) {
           dissolvedOxygen: data.dissolvedOxygen ?? null,
           salinity: data.salinity ?? null,
           turbidity: data.turbidity ?? null,
-          batteryLevel: data.batteryLevel ?? null,
+          battery: data.battery ?? null,
         };
 
         setSensorData({

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       "dissolvedOxygen",
       "salinity",
       "turbidity",
-      "batteryLevel",
+      "battery",
     ];
     const telemetryData: Record<string, number> = {};
 

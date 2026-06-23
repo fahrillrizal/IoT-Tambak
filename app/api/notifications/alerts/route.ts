@@ -10,7 +10,7 @@ const TELEMETRY_KEYS = [
   "dissolvedOxygen",
   "salinity",
   "turbidity",
-  "batteryLevel",
+  "battery",
 ];
 
 interface NotificationRow {
@@ -42,7 +42,7 @@ function evaluateSeverity(data: {
   dissolvedOxygen?: number | null;
   salinity?: number | null;
   turbidity?: number | null;
-  batteryLevel?: number | null;
+  battery?: number | null;
 }): "CRITICAL" | "WARNING" | null {
   const t = data.temperature ?? undefined;
   const p = data.ph ?? undefined;
@@ -74,8 +74,8 @@ function evaluateSeverity(data: {
   return null;
 }
 
-function isBatteryLow(batteryLevel?: number | null): boolean {
-  return batteryLevel !== undefined && batteryLevel !== null && batteryLevel < 15;
+function isBatteryLow(battery?: number | null): boolean {
+  return battery !== undefined && battery !== null && battery < 15;
 }
 
 type IssueBuckets = {
@@ -231,7 +231,7 @@ export async function GET() {
 
       // Detect if this is a battery-only alarm
       const hasBattery =
-        typeof params.batteryLevel === "number" && params.batteryLevel < 15;
+        typeof params.battery === "number" && params.battery < 15;
       const hasWaterQuality =
         params.temperature != null ||
         params.ph != null ||
@@ -241,7 +241,7 @@ export async function GET() {
       const isBatteryOnly = hasBattery && !hasWaterQuality;
 
       const computedMessage = isBatteryOnly
-        ? `Battery LOW: ${(params.batteryLevel as number).toFixed(0)}% (min: 15%)`
+        ? `Battery LOW: ${(params.battery as number).toFixed(0)}% (min: 15%)`
         : buildMessageFromParams(row.severity, params);
 
       return {
@@ -298,11 +298,11 @@ export async function GET() {
             dissolvedOxygen: getLatestValue(latest.dissolvedOxygen),
             salinity: getLatestValue(latest.salinity),
             turbidity: getLatestValue(latest.turbidity),
-            batteryLevel: getLatestValue(latest.batteryLevel),
+            battery: getLatestValue(latest.battery),
           };
 
           const severity = evaluateSeverity(data);
-          const batteryLow = isBatteryLow(data.batteryLevel);
+          const batteryLow = isBatteryLow(data.battery);
 
           if (!severity && !batteryLow) return;
 
@@ -342,13 +342,13 @@ export async function GET() {
 
           // Battery low notification (separate from water quality)
           if (batteryLow) {
-            const batTs = getLatestTimestamp(latest.batteryLevel) ?? Date.now();
+            const batTs = getLatestTimestamp(latest.battery) ?? Date.now();
 
             notifications.push({
               id: `notif-rt-${tbDeviceId}-bat-${batTs}`,
               targetId: `rt-${tbDeviceId}-bat-${batTs}`,
               severity: "warning",
-              message: `Battery LOW: ${data.batteryLevel?.toFixed(0)}% (min: 15%)`,
+              message: `Battery LOW: ${data.battery?.toFixed(0)}% (min: 15%)`,
               pondName: device.pond?.name || "Pond",
               action: "Charge or replace battery",
               timestamp: new Date(batTs).toISOString(),
