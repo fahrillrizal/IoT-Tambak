@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
 
-    if (WEBHOOK_SECRET) {
+    if (ALERT_WEBHOOK_SECRET) {
       const querySecret = searchParams.get("secret");
-      if (querySecret !== WEBHOOK_SECRET) {
+      if (querySecret !== ALERT_WEBHOOK_SECRET) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
     }
