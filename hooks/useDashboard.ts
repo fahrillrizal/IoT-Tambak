@@ -24,6 +24,7 @@ function calculateStatus(
     return "Offline";
   }
 
+  // Water quality — Critical
   if (
     (t !== undefined && t !== null && (t < 24 || t > 32)) ||
     (p !== undefined && p !== null && (p < 6.0 || p > 8.4)) ||
@@ -36,6 +37,7 @@ function calculateStatus(
     return "Critical";
   }
 
+  // Water quality — Warning
   if (
     (t !== undefined && t !== null && (t === 25 || t === 31)) ||
     (p !== undefined && p !== null && (p < 7.0 || p > 8.0)) ||
@@ -110,6 +112,7 @@ export function useSensorData(deviceId?: string) {
     dissolvedOxygen: null,
     salinity: null,
     turbidity: null,
+    battery: null,
     status: "Offline",
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -137,6 +140,7 @@ export function useSensorData(deviceId?: string) {
           dissolvedOxygen: result.data.dissolvedOxygen ?? null,
           salinity: result.data.salinity ?? null,
           turbidity: result.data.turbidity ?? null,
+          battery: result.data.battery ?? null,
         };
 
         setSensorData({
@@ -170,6 +174,7 @@ export function useSensorData(deviceId?: string) {
         dissolvedOxygen: null,
         salinity: null,
         turbidity: null,
+        battery: null,
         status: "Offline",
       });
       setIsConnected(false);
@@ -200,6 +205,7 @@ export function useSensorData(deviceId?: string) {
           dissolvedOxygen: data.dissolvedOxygen ?? null,
           salinity: data.salinity ?? null,
           turbidity: data.turbidity ?? null,
+          battery: data.battery ?? null,
         };
 
         setSensorData({

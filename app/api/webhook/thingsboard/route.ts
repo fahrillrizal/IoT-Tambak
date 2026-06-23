@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       "dissolvedOxygen",
       "salinity",
       "turbidity",
+      "battery",
     ];
     const telemetryData: Record<string, number> = {};
 
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     if (device) {
       const wasOffline = device.deviceStatus !== "ACTIVE";
-      
+
       await prisma.device.update({
         where: { id: device.id },
         data: {

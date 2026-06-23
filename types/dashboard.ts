@@ -21,6 +21,7 @@ export interface TelemetryData {
   dissolvedOxygen: number | null;
   salinity: number | null;
   turbidity: number | null;
+  battery?: number | null;
   status: 'Normal' | 'Warning' | 'Critical' | 'Offline';
 }
 

@@ -57,8 +57,9 @@ export function buildAlertTelegramMessage(input: {
   eventTime: Date;
 }): string {
   const deviceLabel = input.deviceName?.trim() || input.deviceId;
+  const emoji = input.severity === "CRITICAL" ? "🚨" : "⚠️";
   const lines = [
-    `ALERT ${input.severity}`,
+    `${emoji} ${input.severity} — Water Quality Alert`,
     `Pond: ${input.pondName || "Pond"}`,
     `Device: ${deviceLabel}`,
     `Status: ${input.status}`,

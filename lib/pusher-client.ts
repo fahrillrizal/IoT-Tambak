@@ -26,6 +26,7 @@ export interface TelemetryPayload {
   dissolvedOxygen?: number;
   salinity?: number;
   turbidity?: number;
+  battery?: number;
   timestamp: number;
 }
 
