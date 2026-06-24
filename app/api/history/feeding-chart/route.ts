@@ -45,13 +45,20 @@ export async function GET(request: NextRequest) {
     const nowUTC = new Date();
     const nowWIB = new Date(nowUTC.getTime() + WIB_OFFSET_MS);
 
-    // Build 7-day labels and ranges
+    // Build 7-day labels starting from Monday of current week (ISO week)
     const dayLabels: string[] = [];
     const dayRanges: { start: Date; end: Date }[] = [];
 
-    for (let i = 6; i >= 0; i--) {
-      const dayWIB = new Date(nowWIB);
-      dayWIB.setDate(dayWIB.getDate() - i);
+    // Find Monday of current week in WIB
+    const dayOfWeek = nowWIB.getDay(); // 0=Sun, 1=Mon, ...
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // days to subtract to get Monday
+    const mondayWIB = new Date(nowWIB);
+    mondayWIB.setDate(mondayWIB.getDate() + mondayOffset);
+    mondayWIB.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 7; i++) {
+      const dayWIB = new Date(mondayWIB);
+      dayWIB.setDate(dayWIB.getDate() + i);
       dayWIB.setHours(0, 0, 0, 0);
 
       const dayEndWIB = new Date(dayWIB);
@@ -63,7 +70,7 @@ export async function GET(request: NextRequest) {
 
       dayRanges.push({ start: startUTC, end: endUTC });
 
-      // Label: short day name
+      // Label: short day name (Mon, Tue, ...)
       const dayName = dayWIB.toLocaleDateString("en-US", { weekday: "short" });
       dayLabels.push(dayName);
     }

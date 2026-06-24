@@ -43,6 +43,9 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
   const [showAddSchedule, setShowAddSchedule] = useState(false);
   const [newScheduleTime, setNewScheduleTime] = useState("");
   const [newScheduleAmount, setNewScheduleAmount] = useState("");
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmWarnings, setConfirmWarnings] = useState<string[]>([]);
+  const [confirmSeverity, setConfirmSeverity] = useState<"warning" | "critical">("warning");
 
   // Real-time feeder telemetry (battery + sisaPakan)
   const { telemetry, feedStockPercent, isConnected } = useFeederTelemetry(selectedDevice);
@@ -66,17 +69,76 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
     );
   }
 
-  // Manual override feeding
+  // Manual override feeding — with water quality pre-check
   const handleManualFeed = async () => {
     if (!manualAmount || !pondId) return;
     const amountGram = parseFloat(manualAmount);
     if (isNaN(amountGram) || amountGram <= 0) return;
 
     resetFeed();
+
+    // Pre-check: evaluate current sensor data for warnings
+    const warnings: string[] = [];
+    let severity: "warning" | "critical" = "warning";
+
+    // Use real-time sensor data from the useSensorData hook (already subscribed)
+    // We check directly from telemetry values available via Pusher
+    try {
+      const res = await fetch(`/api/telemetry?deviceId=${selectedDevice}`);
+      if (res.ok) {
+        const result = await res.json();
+        if (result.success && result.data) {
+          const { temperature: t, ph: p, dissolvedOxygen: d, salinity: s, turbidity: tb } = result.data;
+
+          // Critical checks
+          if (t != null && (t < 24 || t > 32)) { warnings.push(`Temperature: ${t.toFixed(1)}°C (di luar batas aman)`); severity = "critical"; }
+          if (p != null && (p < 6.0 || p > 8.5)) { warnings.push(`pH: ${p.toFixed(2)} (di luar batas aman)`); severity = "critical"; }
+          if (d != null && d < 4.9) { warnings.push(`DO: ${d.toFixed(1)} mg/L (terlalu rendah)`); severity = "critical"; }
+          if (s != null && (s < 8 || s > 35)) { warnings.push(`Salinity: ${s.toFixed(1)} ppt (di luar batas aman)`); severity = "critical"; }
+          if (tb != null && tb > 40) { warnings.push(`Turbidity: ${tb.toFixed(1)} NTU (terlalu tinggi)`); severity = "critical"; }
+
+          // Warning checks (only if no critical for that param)
+          if (t != null && t >= 24 && t <= 32 && (t < 26 || t > 30)) warnings.push(`Temperature: ${t.toFixed(1)}°C (mendekati batas)`);
+          if (p != null && p >= 6.0 && p <= 8.5 && (p < 7.0 || p > 8.0)) warnings.push(`pH: ${p.toFixed(2)} (mendekati batas)`);
+          if (d != null && d >= 4.9 && d < 5.0) warnings.push(`DO: ${d.toFixed(1)} mg/L (mendekati batas)`);
+          if (s != null && s >= 8 && s <= 35 && (s < 10 || s > 30)) warnings.push(`Salinity: ${s.toFixed(1)} ppt (mendekati batas)`);
+          if (tb != null && tb <= 40 && tb > 25) warnings.push(`Turbidity: ${tb.toFixed(1)} NTU (mendekati batas)`);
+        }
+      }
+    } catch {
+      // If pre-check fails, proceed without confirmation
+    }
+
+    // If water quality has issues, show confirmation dialog
+    if (warnings.length > 0) {
+      setConfirmWarnings(warnings);
+      setConfirmSeverity(severity);
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    // No issues — send RPC directly
     await triggerFeed(pondId, amountGram);
     setManualAmount("");
-    // Refresh history after feeding
     setTimeout(() => refetchHistory(), 2000);
+  };
+
+  // Confirmed manual feed (after user acknowledges warnings)
+  const handleConfirmedFeed = async () => {
+    if (!manualAmount || !pondId) return;
+    const amountGram = parseFloat(manualAmount);
+    if (isNaN(amountGram) || amountGram <= 0) return;
+
+    setShowConfirmDialog(false);
+    setConfirmWarnings([]);
+    await triggerFeed(pondId, amountGram);
+    setManualAmount("");
+    setTimeout(() => refetchHistory(), 2000);
+  };
+
+  const handleCancelFeed = () => {
+    setShowConfirmDialog(false);
+    setConfirmWarnings([]);
   };
 
   // Battery display helpers
@@ -536,6 +598,64 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
           </CardContent>
         </Card>
       </div>
+
+      {/* Water Quality Confirmation Dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle className={`h-6 w-6 flex-shrink-0 mt-0.5 ${confirmSeverity === "critical" ? "text-red-600" : "text-yellow-600"}`} />
+              <div>
+                <h3 className={`font-bold text-lg ${confirmSeverity === "critical" ? "text-red-800" : "text-yellow-800"}`}>
+                  {confirmSeverity === "critical" ? "Kondisi Air Kritis!" : "Peringatan Kualitas Air"}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {confirmSeverity === "critical"
+                    ? "Kualitas air dalam kondisi kritis. AI merekomendasikan untuk TIDAK memberi pakan saat ini. Lanjutkan?"
+                    : "Beberapa parameter air mendekati batas. Yakin ingin memberi pakan?"}
+                </p>
+              </div>
+            </div>
+
+            <div className={`p-3 rounded-lg mb-4 ${confirmSeverity === "critical" ? "bg-red-50 border border-red-200" : "bg-yellow-50 border border-yellow-200"}`}>
+              <p className="text-xs font-medium text-gray-700 mb-2">Parameter bermasalah:</p>
+              <ul className="space-y-1">
+                {confirmWarnings.map((w, i) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <span className={`text-xs mt-0.5 ${confirmSeverity === "critical" ? "text-red-500" : "text-yellow-500"}`}>&#x2022;</span>
+                    <span className="text-xs text-gray-700">{w}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <p className="text-xs text-gray-500 mb-4">
+              Amount: <span className="font-medium">{manualAmount}g</span> — Manual override akan tetap mengirim RPC ke device.
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={handleCancelFeed}
+                variant="outline"
+                className="flex-1"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleConfirmedFeed}
+                className={`flex-1 ${confirmSeverity === "critical" ? "bg-red-600 hover:bg-red-700" : "bg-yellow-600 hover:bg-yellow-700"}`}
+              >
+                {isFeedingLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Tetap Beri Pakan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
