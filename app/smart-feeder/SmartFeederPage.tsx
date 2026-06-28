@@ -48,7 +48,10 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
   const [confirmSeverity, setConfirmSeverity] = useState<"warning" | "critical">("warning");
 
   // Real-time feeder telemetry (battery + sisaPakan)
-  const { telemetry, feedStockPercent, isConnected } = useFeederTelemetry(selectedDevice);
+  const { telemetry, feedStockPercent } = useFeederTelemetry(selectedDevice);
+
+  // Device online status (from actual device heartbeat, not just Pusher connection)
+  const isDeviceOnline = currentDevice?.isOnline ?? false;
 
   // Manual feeding RPC hook
   const { triggerFeed, isLoading: isFeedingLoading, result: feedResult, error: feedError, reset: resetFeed } = useManualFeeding();
@@ -182,21 +185,21 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
         {/* Status Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {/* System Status */}
-          <Card className={isConnected ? "bg-green-50 border-green-100" : "bg-gray-50 border-gray-200"}>
+          <Card className={isDeviceOnline ? "bg-green-50 border-green-100" : "bg-gray-50 border-gray-200"}>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                {isConnected ? (
+                {isDeviceOnline ? (
                   <Zap className="h-8 w-8 text-green-600" />
                 ) : (
                   <WifiOff className="h-8 w-8 text-gray-400" />
                 )}
                 <div>
                   <p className="text-sm text-gray-600">System Status</p>
-                  <p className={`text-xl font-bold ${isConnected ? "text-green-600" : "text-gray-500"}`}>
-                    {isConnected ? "Online" : "Offline"}
+                  <p className={`text-xl font-bold ${isDeviceOnline ? "text-green-600" : "text-gray-500"}`}>
+                    {isDeviceOnline ? "Online" : "Offline"}
                   </p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${isConnected ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}>
-                    {isConnected ? "Active" : "No Data"}
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${isDeviceOnline ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}>
+                    {isDeviceOnline ? "Active" : "No Data"}
                   </span>
                 </div>
               </div>
