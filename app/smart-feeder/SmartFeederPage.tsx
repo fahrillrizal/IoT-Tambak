@@ -43,6 +43,16 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
   const [showAddSchedule, setShowAddSchedule] = useState(false);
   const [newScheduleTime, setNewScheduleTime] = useState("");
   const [newScheduleAmount, setNewScheduleAmount] = useState("");
+  const [scheduleAiFeedback, setScheduleAiFeedback] = useState<{
+    adjusted: boolean;
+    reason: string;
+    water_quality: string;
+    ai_feed_g: number;
+    baseline_feed_g: number;
+    warnings: string[];
+    blocked?: boolean;
+  } | null>(null);
+  const [isScheduleSaving, setIsScheduleSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmWarnings, setConfirmWarnings] = useState<string[]>([]);
   const [confirmSeverity, setConfirmSeverity] = useState<"warning" | "critical">("warning");
@@ -328,6 +338,59 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
                     </div>
                   </div>
                 </div>
+
+                {/* AI feedback after saving */}
+                {scheduleAiFeedback && (
+                  <div className={`mt-3 p-3 rounded-lg border text-xs ${
+                    scheduleAiFeedback.blocked
+                      ? "bg-red-50 border-red-200"
+                      : scheduleAiFeedback.adjusted
+                      ? "bg-yellow-50 border-yellow-200"
+                      : "bg-green-50 border-green-200"
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      {scheduleAiFeedback.blocked ? (
+                        <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                      ) : scheduleAiFeedback.adjusted ? (
+                        <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                      )}
+                      <div>
+                        <p className={`font-medium ${scheduleAiFeedback.blocked ? "text-red-800" : scheduleAiFeedback.adjusted ? "text-yellow-800" : "text-green-800"}`}>
+                          {scheduleAiFeedback.blocked
+                            ? "Jadwal diblokir AI — kualitas air kritis"
+                            : scheduleAiFeedback.adjusted
+                            ? "Jumlah disesuaikan oleh AI"
+                            : "AI: Jadwal disetujui"}
+                        </p>
+                        <p className="text-gray-600 mt-0.5">{scheduleAiFeedback.reason}</p>
+                        {scheduleAiFeedback.baseline_feed_g > 0 && (
+                          <p className="text-gray-500 mt-1">
+                            Baseline per sesi: {scheduleAiFeedback.baseline_feed_g.toFixed(0)}g
+                            {scheduleAiFeedback.ai_feed_g > 0 && <> &middot; AI rekomendasikan: {scheduleAiFeedback.ai_feed_g}g</>}
+                            &middot; Kualitas air: {scheduleAiFeedback.water_quality}
+                          </p>
+                        )}
+                        {scheduleAiFeedback.warnings.length > 0 && (
+                          <ul className="mt-1 space-y-0.5">
+                            {scheduleAiFeedback.warnings.map((w, i) => (
+                              <li key={i} className="text-yellow-700">⚠ {w}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {!scheduleAiFeedback.blocked && (
+                          <button
+                            onClick={() => { setScheduleAiFeedback(null); setShowAddSchedule(false); }}
+                            className="mt-2 text-cyan-600 hover:underline"
+                          >
+                            Tutup
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Feedback after feeding */}
@@ -432,17 +495,52 @@ export default function SmartFeederPageClient({ defaultCollapsed }: SmartFeederP
                     <Button
                       size="sm"
                       className="bg-cyan-600 hover:bg-cyan-700"
-                      disabled={!newScheduleTime || !newScheduleAmount}
+                      disabled={!newScheduleTime || !newScheduleAmount || isScheduleSaving}
                       onClick={async () => {
                         const amount = parseFloat(newScheduleAmount);
                         if (!newScheduleTime || isNaN(amount) || amount <= 0) return;
-                        await addSchedule({ time: newScheduleTime, amount });
-                        setNewScheduleTime("");
-                        setNewScheduleAmount("");
-                        setShowAddSchedule(false);
+                        setIsScheduleSaving(true);
+                        setScheduleAiFeedback(null);
+
+                        const result = await addSchedule({ time: newScheduleTime, amount });
+
+                        setIsScheduleSaving(false);
+
+                        if (!result) return;
+
+                        // Blocked by AI (critical water quality)
+                        if (result.blocked) {
+                          setScheduleAiFeedback({
+                            adjusted: false,
+                            reason: result.ai_recommendation?.reason ?? "AI blocked this schedule.",
+                            water_quality: result.ai_recommendation?.water_quality ?? "critical",
+                            ai_feed_g: 0,
+                            baseline_feed_g: result.ai_recommendation?.baseline_feed_g ?? 0,
+                            warnings: result.ai_recommendation?.warnings ?? [],
+                            blocked: true,
+                          });
+                          return;
+                        }
+
+                        // Show AI feedback if available
+                        if (result.ai_recommendation) {
+                          setScheduleAiFeedback({
+                            ...result.ai_recommendation,
+                            blocked: false,
+                          });
+                        }
+
+                        if (result.success) {
+                          setNewScheduleTime("");
+                          setNewScheduleAmount("");
+                          // Don't close form so user sees AI feedback
+                          if (!result.ai_recommendation) setShowAddSchedule(false);
+                        }
                       }}
                     >
-                      Save
+                      {isScheduleSaving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : "Save"}
                     </Button>
                   </div>
                 </div>

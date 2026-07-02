@@ -778,7 +778,7 @@ export function useRealFeedingSchedule(pondId?: number) {
   }, []);
 
   const addSchedule = useCallback(
-    async (data: { time: string; amount: number; name?: string; daysOfWeek?: string }) => {
+    async (data: { time: string; amount: number; name?: string; daysOfWeek?: string; forceAmount?: boolean }) => {
       if (!pondId) return null;
       try {
         const response = await fetch("/api/feeding-schedules", {
@@ -789,9 +789,9 @@ export function useRealFeedingSchedule(pondId?: number) {
         const result = await response.json();
         if (result.success) {
           await fetchSchedules(pondId);
-          return result.data;
+          return result; // includes data + ai_recommendation
         }
-        return null;
+        return result; // includes error + ai_recommendation (for blocked case)
       } catch (err) {
         console.error("Failed to add schedule:", err);
         return null;

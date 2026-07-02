@@ -8,6 +8,7 @@ import PondSelector from "@/components/dashboard/PondSelector";
 import { HistorySkeleton } from "@/components/skeletons/HistorySkeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ import {
   AlertTriangle,
   Wrench,
   ChevronDown,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useAuth, useDeviceSelection } from "@/hooks/useDashboard";
 
@@ -76,6 +78,29 @@ interface HistoryLogItem {
   message: string;
   severity: "high" | "medium" | "normal" | "info";
   timestampMs: number;
+  metrics?: {
+    temperature?: number;
+    ph?: number;
+    dissolvedOxygen?: number;
+    salinity?: number;
+    turbidity?: number;
+  };
+}
+
+interface VariableFilters {
+  temperature: VariableFilterRule;
+  ph: VariableFilterRule;
+  dissolvedOxygen: VariableFilterRule;
+  salinity: VariableFilterRule;
+  turbidity: VariableFilterRule;
+}
+
+type VariableFilterOperator = "eq" | "gte" | "lte" | "range";
+
+interface VariableFilterRule {
+  operator: VariableFilterOperator;
+  value: string;
+  valueTo: string;
 }
 
 const PERIOD_TO_DAYS: Record<string, number> = {
@@ -86,6 +111,70 @@ const PERIOD_TO_DAYS: Record<string, number> = {
 };
 
 const WIB_OFFSET_HOURS = 7;
+const NUMBER_COMPARE_EPSILON = 0.0001;
+const VARIABLE_FILTER_OPERATORS: Array<{
+  value: VariableFilterOperator;
+  label: string;
+}> = [
+  { value: "eq", label: "=" },
+  { value: "gte", label: ">=" },
+  { value: "lte", label: "<=" },
+  { value: "range", label: "Range" },
+];
+
+const VARIABLE_FILTER_FIELDS: Array<{
+  key: keyof VariableFilters;
+  label: string;
+  placeholder: string;
+  step: string;
+}> = [
+  {
+    key: "ph",
+    label: "pH",
+    placeholder: "e.g. 7",
+    step: "0.01",
+  },
+  {
+    key: "temperature",
+    label: "Temperature (°C)",
+    placeholder: "e.g. 29",
+    step: "0.1",
+  },
+  {
+    key: "dissolvedOxygen",
+    label: "DO (mg/L)",
+    placeholder: "e.g. 5.2",
+    step: "0.1",
+  },
+  {
+    key: "salinity",
+    label: "Salinity (ppt)",
+    placeholder: "e.g. 20",
+    step: "0.1",
+  },
+  {
+    key: "turbidity",
+    label: "Turbidity (NTU)",
+    placeholder: "e.g. 15",
+    step: "0.1",
+  },
+];
+
+function createDefaultVariableFilters(): VariableFilters {
+  const baseRule: VariableFilterRule = {
+    operator: "eq",
+    value: "",
+    valueTo: "",
+  };
+
+  return {
+    temperature: { ...baseRule },
+    ph: { ...baseRule },
+    dissolvedOxygen: { ...baseRule },
+    salinity: { ...baseRule },
+    turbidity: { ...baseRule },
+  };
+}
 
 function getTodayStartWIBTs(): number {
   const now = new Date();
@@ -229,6 +318,74 @@ function buildAlertMessage(item: AlertHistoryItem): string {
   return item.message.replace(/^(CRITICAL|WARNING):\s*(CRITICAL|WARNING):\s*/i, "$1: ");
 }
 
+function parseFilterNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isSameNumber(left: number, right: number): boolean {
+  return Math.abs(left - right) < NUMBER_COMPARE_EPSILON;
+}
+
+function isRuleFilled(rule: VariableFilterRule): boolean {
+  if (rule.operator === "range") {
+    return rule.value.trim() !== "" || rule.valueTo.trim() !== "";
+  }
+  return rule.value.trim() !== "";
+}
+
+function getNormalizedRange(first: number, second: number): [number, number] {
+  return first <= second ? [first, second] : [second, first];
+}
+
+function metricMatchesRule(metricValue: number, rule: VariableFilterRule): boolean {
+  const primary = parseFilterNumber(rule.value);
+
+  if (rule.operator === "range") {
+    const secondary = parseFilterNumber(rule.valueTo);
+    if (primary === null || secondary === null) return true;
+
+    const [minValue, maxValue] = getNormalizedRange(primary, secondary);
+    return (
+      metricValue + NUMBER_COMPARE_EPSILON >= minValue &&
+      metricValue - NUMBER_COMPARE_EPSILON <= maxValue
+    );
+  }
+
+  if (primary === null) return true;
+
+  if (rule.operator === "eq") {
+    return isSameNumber(metricValue, primary);
+  }
+
+  if (rule.operator === "gte") {
+    return metricValue + NUMBER_COMPARE_EPSILON >= primary;
+  }
+
+  return metricValue - NUMBER_COMPARE_EPSILON <= primary;
+}
+
+function logMatchesVariableFilters(
+  log: HistoryLogItem,
+  variableFilters: VariableFilters,
+): boolean {
+  const filterEntries = Object.entries(variableFilters) as Array<
+    [keyof VariableFilters, VariableFilterRule]
+  >;
+
+  for (const [metricKey, rule] of filterEntries) {
+    if (!isRuleFilled(rule)) continue;
+
+    const metricValue = log.metrics?.[metricKey];
+    if (typeof metricValue !== "number") return false;
+    if (!metricMatchesRule(metricValue, rule)) return false;
+  }
+
+  return true;
+}
+
 export default function HistoryPageClient({
   defaultCollapsed,
 }: HistoryPageClientProps) {
@@ -237,6 +394,10 @@ export default function HistoryPageClient({
   const { selectedDevice, setSelectedDevice, devices } = useDeviceSelection();
   const [period, setPeriod] = useState("today");
   const [filterType, setFilterType] = useState<string>("all");
+  const [showVariableFilters, setShowVariableFilters] = useState(false);
+  const [variableFilters, setVariableFilters] = useState<VariableFilters>(
+    createDefaultVariableFilters,
+  );
   const [stats, setStats] = useState<HistoryStats>({
     activeDays: 0,
     firstDataAt: null,
@@ -255,11 +416,63 @@ export default function HistoryPageClient({
   const mergedLogs = [...alarmLogs, ...readingLogs].sort(
     (a, b) => b.timestampMs - a.timestampMs,
   );
-  const filteredLogs =
+  const typeFilteredLogs =
     filterType === "all"
       ? mergedLogs
       : mergedLogs.filter((log) => log.type === filterType);
+  const filteredLogs = typeFilteredLogs.filter((log) =>
+    logMatchesVariableFilters(log, variableFilters),
+  );
   const visibleLogs = filteredLogs.slice(0, visibleCount);
+  const hasActiveVariableFilters = Object.values(variableFilters).some((rule) =>
+    isRuleFilled(rule),
+  );
+  const activeVariableFilterCount = Object.values(variableFilters).filter((rule) =>
+    isRuleFilled(rule),
+  ).length;
+
+  const updateVariableFilterOperator = (
+    key: keyof VariableFilters,
+    operator: VariableFilterOperator,
+  ) => {
+    setVariableFilters((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        operator,
+      },
+    }));
+  };
+
+  const updateVariableFilterValue = (
+    key: keyof VariableFilters,
+    value: string,
+  ) => {
+    setVariableFilters((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        value,
+      },
+    }));
+  };
+
+  const updateVariableFilterValueTo = (
+    key: keyof VariableFilters,
+    valueTo: string,
+  ) => {
+    setVariableFilters((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        valueTo,
+      },
+    }));
+  };
+
+  const clearVariableFilters = () => {
+    setVariableFilters(createDefaultVariableFilters());
+  };
 
   useEffect(() => {
     const filter = searchParams.get("filter");
@@ -390,6 +603,13 @@ export default function HistoryPageClient({
                 message: buildReadingMessage(point),
                 severity,
                 timestampMs: point.timestamp,
+                metrics: {
+                  temperature: point.temperature,
+                  ph: point.ph,
+                  dissolvedOxygen: point.dissolvedOxygen,
+                  salinity: point.salinity,
+                  turbidity: point.turbidity,
+                },
               };
             },
           );
@@ -425,6 +645,7 @@ export default function HistoryPageClient({
         const nextAlarmLogs: HistoryLogItem[] = sortedAlerts.map((alert) => {
           const createdAt = new Date(alert.eventTime);
           const isCritical = alert.severity === "CRITICAL";
+          const params = alert.parameters || {};
 
           return {
             id: `alarm-${alert.id}`,
@@ -437,6 +658,25 @@ export default function HistoryPageClient({
             message: buildAlertMessage(alert),
             severity: isCritical ? ("high" as const) : ("medium" as const),
             timestampMs: createdAt.getTime(),
+            metrics: {
+              temperature:
+                typeof params.temperature === "number"
+                  ? params.temperature
+                  : undefined,
+              ph: typeof params.ph === "number" ? params.ph : undefined,
+              dissolvedOxygen:
+                typeof params.dissolvedOxygen === "number"
+                  ? params.dissolvedOxygen
+                  : undefined,
+              salinity:
+                typeof params.salinity === "number"
+                  ? params.salinity
+                  : undefined,
+              turbidity:
+                typeof params.turbidity === "number"
+                  ? params.turbidity
+                  : undefined,
+            },
           };
         });
 
@@ -456,7 +696,7 @@ export default function HistoryPageClient({
 
   useEffect(() => {
     setVisibleCount(20);
-  }, [selectedDevice, period, filterType]);
+  }, [selectedDevice, period, filterType, variableFilters]);
 
   useEffect(() => {
     if (!selectedDevice || typeof window === "undefined") return;
@@ -567,6 +807,109 @@ export default function HistoryPageClient({
             </Select>
           </div>
         </div>
+
+        <div className="mb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => setShowVariableFilters((prev) => !prev)}
+              className="w-full sm:w-auto"
+            >
+              <SlidersHorizontal className="h-4 w-4 mr-2" />
+              {showVariableFilters ? "Hide Filter" : "Show Filter"}
+              {activeVariableFilterCount > 0
+                ? ` (${activeVariableFilterCount} active)`
+                : ""}
+            </Button>
+
+            {showVariableFilters ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearVariableFilters}
+                disabled={!hasActiveVariableFilters}
+              >
+                Reset Variable Filter
+              </Button>
+            ) : null}
+          </div>
+
+          {!showVariableFilters && hasActiveVariableFilters ? (
+            <p className="text-xs text-gray-500 mt-2">
+              Variable filter is active. Open filter to adjust values.
+            </p>
+          ) : null}
+        </div>
+
+        {showVariableFilters ? (
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Variable Filter</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                {VARIABLE_FILTER_FIELDS.map((field) => (
+                  <div key={field.key}>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">
+                      {field.label}
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      <Select
+                        value={variableFilters[field.key].operator}
+                        onValueChange={(value) =>
+                          updateVariableFilterOperator(
+                            field.key,
+                            value as VariableFilterOperator,
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VARIABLE_FILTER_OPERATORS.map((operator) => (
+                            <SelectItem key={operator.value} value={operator.value}>
+                              {operator.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step={field.step}
+                        placeholder={field.placeholder}
+                        value={variableFilters[field.key].value}
+                        onChange={(event) =>
+                          updateVariableFilterValue(field.key, event.target.value)
+                        }
+                      />
+
+                      {variableFilters[field.key].operator === "range" ? (
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          step={field.step}
+                          placeholder="to"
+                          value={variableFilters[field.key].valueTo}
+                          onChange={(event) =>
+                            updateVariableFilterValueTo(field.key, event.target.value)
+                          }
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                Example: set pH with operator = and value 7 to show only pH value 7.
+                You can also use &gt;=, &lt;=, or range (min-max).
+                Variable filter can be combined with period and activity type filters.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

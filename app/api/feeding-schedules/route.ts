@@ -122,8 +122,10 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/feeding-schedules
- * Create a new feeding schedule.
- * Body: { pondId, name?, time (HH:mm WIB), amount (gram), daysOfWeek? }
+ * Create a new feeding schedule with AI amount validation.
+ * Body: { pondId, name?, time (HH:mm WIB), amount (gram), daysOfWeek?, forceAmount? }
+ *
+ * forceAmount=true skips AI adjustment and uses user's amount exactly.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -138,7 +140,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { pondId, name, time, amount, daysOfWeek } = body;
+    const { pondId, name, time, amount, daysOfWeek, forceAmount } = body;
 
     if (!pondId || !time || !amount) {
       return NextResponse.json(
@@ -166,10 +168,137 @@ export async function POST(request: NextRequest) {
     // Verify pond ownership
     const pond = await prisma.pond.findFirst({
       where: { id: pondId, userId },
+      include: {
+        devices: {
+          where: { isActive: true, thingsboardDeviceId: { not: null } },
+          select: { id: true, thingsboardDeviceId: true },
+          take: 1,
+        },
+      },
     });
 
     if (!pond) {
       return NextResponse.json({ error: "Pond not found" }, { status: 404 });
+    }
+
+    // ── AI Validation ──────────────────────────────────────────
+    let finalAmount = Number(amount);
+    let aiRecommendation: {
+      baseline_feed_g: number;
+      ai_feed_g: number;
+      adjusted: boolean;
+      reason: string;
+      water_quality: string;
+      confidence: number;
+      warnings: string[];
+    } | null = null;
+
+    if (!forceAmount) {
+      try {
+        const AI_API = process.env.AI_API_URL ?? "https://ai.hehehe.tech";
+        const AI_KEY = process.env.AI_API_KEY ?? "";
+        const device = pond.devices[0];
+
+        if (device?.thingsboardDeviceId) {
+          // Fetch latest telemetry for sensor data
+          const { thingsboardService } = await import("@/lib/thingsboard");
+          const keys = ["temperature", "ph", "dissolvedOxygen", "salinity", "turbidity"];
+          const latest = await thingsboardService.getDeviceTelemetry(device.thingsboardDeviceId, keys);
+
+          const getVal = (arr?: any[]) =>
+            Array.isArray(arr) && arr.length > 0 ? parseFloat(arr[0].value) : null;
+
+          const temp = getVal(latest.temperature);
+          const ph = getVal(latest.ph);
+          const dO = getVal(latest.dissolvedOxygen);
+          const sal = getVal(latest.salinity);
+          const turb = getVal(latest.turbidity);
+
+          // Only call AI if we have sensor data with valid ranges
+          if (
+            temp != null && temp >= 10 && temp <= 45 &&
+            ph != null && ph >= 4 && ph <= 11 &&
+            dO != null && dO >= 0 && dO <= 20 &&
+            sal != null && sal >= 0 && sal <= 50 &&
+            turb != null && turb >= 0 && turb <= 500
+          ) {
+            const aiRes = await fetch(`${AI_API}/predict`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(AI_KEY ? { "X-API-Key": AI_KEY } : {}),
+              },
+              body: JSON.stringify({
+                pond_id: pondId,
+                device_id: device.id,
+                temperature: temp,
+                ph: ph,
+                dissolved_oxygen: dO,
+                salinity: sal,
+                turbidity: turb,
+              }),
+              signal: AbortSignal.timeout(8000),
+            });
+
+            if (aiRes.ok) {
+              const aiResult = await aiRes.json();
+              const baseline = aiResult.pond_context?.baseline_feed_g ?? 0;
+              const aiFeedG = aiResult.feed_amount_g ?? 0;
+              const waterQuality = aiResult.water_quality ?? "unknown";
+              const confidence = aiResult.confidence ?? 0;
+              const warns = aiResult.warnings ?? [];
+
+              // If water quality is critical, block schedule creation
+              if (waterQuality === "critical") {
+                return NextResponse.json({
+                  error: "AI blocked schedule: water quality is critical",
+                  ai_recommendation: {
+                    baseline_feed_g: baseline,
+                    ai_feed_g: 0,
+                    adjusted: false,
+                    reason: `Kualitas air kritis. ${aiResult.recommendation}`,
+                    water_quality: waterQuality,
+                    confidence,
+                    warnings: warns,
+                  },
+                  blocked: true,
+                }, { status: 422 });
+              }
+
+              const diffPct = baseline > 0
+                ? Math.abs(Number(amount) - baseline) / baseline * 100
+                : 0;
+
+              let adjusted = false;
+              let reason = "";
+
+              if (baseline > 0 && diffPct > 30) {
+                // Auto-adjust to AI baseline (per-session amount)
+                finalAmount = Math.round(baseline);
+                adjusted = true;
+                reason = `Jumlah pakan disesuaikan dari ${amount}g ke ${finalAmount}g (baseline per sesi: ${baseline.toFixed(0)}g, selisih ${diffPct.toFixed(0)}% terlalu jauh).`;
+              } else if (aiFeedG > 0 && aiFeedG !== Number(amount)) {
+                reason = `Jumlah ${amount}g masuk akal. AI rekomendasikan ${aiFeedG}g berdasarkan kondisi terkini.`;
+              } else {
+                reason = `Jumlah ${amount}g sesuai dengan kebutuhan per sesi (baseline: ${baseline.toFixed(0)}g).`;
+              }
+
+              aiRecommendation = {
+                baseline_feed_g: baseline,
+                ai_feed_g: aiFeedG,
+                adjusted,
+                reason,
+                water_quality: waterQuality,
+                confidence,
+                warnings: warns,
+              };
+            }
+          }
+        }
+      } catch (aiErr) {
+        console.warn("[Schedule AI Validation] Skipped:", aiErr);
+        // Non-blocking — continue with user amount if AI unavailable
+      }
     }
 
     const schedule = await prisma.feedingSchedule.create({
@@ -177,7 +306,7 @@ export async function POST(request: NextRequest) {
         pondId,
         name: name || `Schedule ${time}`,
         time,
-        amount,
+        amount: finalAmount,
         daysOfWeek: daysOfWeek || "everyday",
         isActive: true,
       },
@@ -194,6 +323,7 @@ export async function POST(request: NextRequest) {
         daysOfWeek: schedule.daysOfWeek,
         isActive: schedule.isActive,
       },
+      ai_recommendation: aiRecommendation,
     });
   } catch (error) {
     console.error("[Feeding Schedules POST]", error);
