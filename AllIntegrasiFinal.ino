@@ -18,10 +18,10 @@
 #define SERVO_PIN 17
 #define RELAY2_PIN 18
 
-#define WIFI_SSID "isi dengan SSID WiFi"
-#define WIFI_PASSWORD "isi dengan password WiFi"
-#define TOKEN "isi dengan access token device di ThingsBoard"
-#define THINGSBOARD_SERVER "isi dengan alamat server ThingsBoard (misal: demo.thingsboard.io)"
+#define WIFI_SSID "WIFI_NAME"
+#define WIFI_PASSWORD "WIFI_PASSWORD"
+#define TOKEN "TOKEN_TB"
+#define THINGSBOARD_SERVER "IPSERVER"
 #define THINGSBOARD_PORT 1883
 
 const int LOADCELL_DOUT_PIN = 26;
