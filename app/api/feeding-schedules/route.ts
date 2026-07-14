@@ -30,9 +30,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify pond ownership
+    // Verify pond access: owner OR shared via UserDevice
     const pond = await prisma.pond.findFirst({
-      where: { id: pondId, userId },
+      where: {
+        id: pondId,
+        OR: [
+          { userId },
+          { devices: { some: { userDevices: { some: { userId } } } } },
+        ],
+      },
     });
 
     if (!pond) {
@@ -165,9 +171,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify pond ownership
+    // Verify pond access: owner OR shared via UserDevice
     const pond = await prisma.pond.findFirst({
-      where: { id: pondId, userId },
+      where: {
+        id: pondId,
+        OR: [
+          { userId },
+          { devices: { some: { userDevices: { some: { userId } } } } },
+        ],
+      },
       include: {
         devices: {
           where: { isActive: true, thingsboardDeviceId: { not: null } },
@@ -358,13 +370,33 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    // Verify schedule belongs to user's pond
+    // Verify schedule access: pond owner OR shared via UserDevice
     const schedule = await prisma.feedingSchedule.findFirst({
       where: { id },
-      include: { pond: { select: { userId: true } } },
+      include: {
+        pond: {
+          select: {
+            userId: true,
+            devices: {
+              select: {
+                userDevices: {
+                  select: { userId: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
-    if (!schedule || schedule.pond.userId !== userId) {
+    const hasAccess = schedule && (
+      schedule.pond.userId === userId ||
+      schedule.pond.devices.some((d) =>
+        d.userDevices.some((ud) => ud.userId === userId)
+      )
+    );
+
+    if (!hasAccess) {
       return NextResponse.json({ error: "Schedule not found" }, { status: 404 });
     }
 

@@ -44,10 +44,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Verify pond access: owner OR shared via UserDevice
     const pond = await prisma.pond.findFirst({
       where: {
         id: pondId,
-        userId: userId,
+        OR: [
+          { userId },
+          { devices: { some: { userDevices: { some: { userId } } } } },
+        ],
       },
       include: {
         devices: {
