@@ -30,9 +30,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify pond ownership
+    // Verify pond access: owner OR shared via UserDevice
     const pond = await prisma.pond.findFirst({
-      where: { id: pondId, userId },
+      where: {
+        id: pondId,
+        OR: [
+          { userId },
+          { devices: { some: { userDevices: { some: { userId } } } } },
+        ],
+      },
     });
 
     if (!pond) {
